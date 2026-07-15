@@ -489,7 +489,7 @@ export default function ResultsView() {
 
                                     {/* Avatar preview */}
                                     {c.picture ? (
-                                      <img src={c.picture} alt={c.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--border)' }} />
+                                      <img src={api.getUrl(c.picture)} alt={c.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--border)' }} />
                                     ) : (
                                       <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#eaeaea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
                                         {c.name.split(' ').map(n => n[0]).join('')}
@@ -529,7 +529,7 @@ export default function ResultsView() {
                         {/* Visual Share Distribution */}
                         <div style={{ display: 'flex', flexDirection: 'column', justifySelf: 'center', alignItems: 'center', background: 'var(--gray-50)', borderRadius: 14, padding: 18, border: '1px solid var(--gray-200)', width: '100%' }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Ballot Distribution</span>
-                          <div style={{ width: '100%', height: 210 }}>
+                          <div style={{ width: '100%', height: 210, minWidth: 0 }}>
                             {posTotalVotes > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
@@ -710,7 +710,7 @@ export default function ResultsView() {
                     <Users size={18} style={{ color: 'var(--green-600)' }} />
                     <h3 style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>Voter Turnout by Department</h3>
                   </div>
-                  <div style={{ height: 240 }}>
+                  <div style={{ height: 240, minWidth: 0 }}>
                     {deptData.length ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={deptData} margin={{ top: 10, right: 5, left: -25, bottom: 5 }}>
@@ -733,7 +733,7 @@ export default function ResultsView() {
                     <Activity size={18} style={{ color: '#d97706' }} />
                     <h3 style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>Voting Velocity Rate</h3>
                   </div>
-                  <div style={{ height: 240 }}>
+                  <div style={{ height: 240, minWidth: 0 }}>
                     {timeData.length ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={timeData} margin={{ top: 10, right: 5, left: -25, bottom: 5 }}>

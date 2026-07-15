@@ -33,6 +33,14 @@ class ApiService {
     return this.token;
   }
 
+  getUrl(path) {
+    if (!path) return '';
+    if (path.startsWith('data:') || path.startsWith('http://') || path.startsWith('https://')) return path;
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    const base = API_BASE.replace(/\/api$/, '');
+    return `${base}${cleanPath}`;
+  }
+
   async request(endpoint, options = {}) {
     const url = `${API_BASE}${endpoint}`;
     const headers = {

@@ -812,7 +812,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                                       <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: 8, marginBottom: 4, transition: 'background 0.12s' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--gray-50)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                           {c.picture ? (
-                                            <img src={c.picture} alt={c.name} style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'cover', border: '1.5px solid var(--green-100)' }} />
+                                            <img src={api.getUrl(c.picture)} alt={c.name} style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'cover', border: '1.5px solid var(--green-100)' }} />
                                           ) : (
                                             <div style={{ width: 28, height: 28, borderRadius: 7, background: c.color || 'var(--green-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 800 }}>{c.name.split(' ').map(n => n[0]).join('')}</div>
                                           )}
@@ -979,7 +979,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                         return (
                           <div key={c.id} className="cand-roster-card">
                             {c.picture ? (
-                              <img src={c.picture} alt={c.name} className="cand-avatar" />
+                              <img src={api.getUrl(c.picture)} alt={c.name} className="cand-avatar" />
                             ) : (
                               <div className="cand-avatar-fallback" style={{ background: c.color || 'var(--green-600)' }}>
                                 {c.name.split(' ').map(n => n[0]).join('')}
@@ -1767,7 +1767,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                 {/* Drag-drop or click Photo block */}
                 <label className={`photo-upload-zone ${newCand.picture ? 'has-photo' : ''}`}>
                   {newCand.picture ? (
-                    <img src={newCand.picture} alt="Preview" />
+                    <img src={api.getUrl(newCand.picture)} alt="Preview" />
                   ) : (
                     <>
                       <Upload size={20} style={{ color: 'var(--navy-400)' }} />

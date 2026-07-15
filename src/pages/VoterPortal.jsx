@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useElection } from '../context/ElectionContext';
+import api from '../services/api';
 import { Vote, Clock, CheckCircle, Check, Lock, Shield, ChevronRight, Users, AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, Copy, Loader2 } from 'lucide-react';
 import { StatusBadge, CountdownTimer, TrustBadge, ConfirmModal, Confetti } from '../components/SharedUI';
 
@@ -320,7 +321,7 @@ export default function VoterPortal() {
                   {/* Candidate Image/Avatar */}
                   <div style={{ width: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                     {c.picture ? (
-                      <img src={c.picture} alt={c.name} style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      <img src={api.getUrl(c.picture)} alt={c.name} style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
                     ) : (
                       <div style={{ width: 120, height: 120, borderRadius: '50%', background: `linear-gradient(135deg, ${c.color || 'var(--green-600)'}, ${c.color || 'var(--green-600)'}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 32, border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
                         {c.name.split(' ').map(n => n[0]).join('')}
@@ -420,7 +421,7 @@ export default function VoterPortal() {
                       <div style={{ fontSize: 11, color: 'var(--accent-500)', fontWeight: 700 }}>{category}</div>
                     </div>
                     {candidate.picture ? (
-                      <img src={candidate.picture} alt={candidate.name} style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover' }} />
+                      <img src={api.getUrl(candidate.picture)} alt={candidate.name} style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover' }} />
                     ) : (
                       <div style={{ width: 34, height: 34, borderRadius: 6, background: candidate.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 12 }}>
                         {candidate.name.split(' ').map(n => n[0]).join('')}
