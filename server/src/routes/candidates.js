@@ -7,34 +7,7 @@ import Election from '../models/Election.js';
 import AuditLog from '../models/AuditLog.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { fileTypeFromBuffer } from 'file-type';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', '..', 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-async function saveBase64Image(base64Str) {
-  if (!base64Str) return null;
-  if (base64Str.startsWith('/uploads/')) return base64Str;
-
-  const parts = base64Str.split(';base64,');
-  if (parts.length !== 2) return null;
-
-  const data = parts[1];
-  const buffer = Buffer.from(data, 'base64');
-
-  const type = await fileTypeFromBuffer(buffer);
-  if (!type || !['image/png', 'image/jpeg', 'image/webp'].includes(type.mime)) {
-    throw new Error('Invalid file type. Only PNG, JPEG, WebP allowed.');
-  }
-
-  const filename = `cand-${Date.now()}-${Math.floor(Math.random() * 1000)}.${type.ext}`;
-  const filepath = path.join(UPLOAD_DIR, filename);
-  fs.writeFileSync(filepath, buffer);
-  return `/uploads/${filename}`;
-}
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -105,12 +78,7 @@ router.post('/', authenticate, authorize('admin'), upload.single('picture'), asy
       if (!type || !['image/png', 'image/jpeg', 'image/webp'].includes(type.mime)) {
         return res.status(400).json({ error: 'Invalid file format. Only PNG, JPEG, WebP allowed.' });
       }
-      const filename = `cand-${Date.now()}-${Math.floor(Math.random() * 1000)}.${type.ext}`;
-      const filepath = path.join(UPLOAD_DIR, filename);
-      fs.writeFileSync(filepath, req.file.buffer);
-      picture = `/uploads/${filename}`;
-    } else if (picture && picture.startsWith('data:image/')) {
-      picture = await saveBase64Image(picture);
+      picture = `data:${type.mime};base64,${req.file.buffer.toString('base64')}`;
     }
     await Candidate.create({ _id: id, election_id: electionId, name, department: department || '', position, manifesto: manifesto || '', vote_count: 0, color: color || '#2e7d32', picture });
     await AuditLog.create({ _id: `log-${Date.now()}`, action: 'Candidate Added', performed_by: req.user.name, role: 'Admin', timestamp: new Date().toISOString(), metadata: JSON.stringify({ electionId, candidate: name }) });
