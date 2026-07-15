@@ -3,8 +3,8 @@ import api from '../services/api';
 
 const AuthContext = createContext(null);
 
-const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-const WARNING_BEFORE = 2 * 60 * 1000; // warn 2 min before
+const SESSION_TIMEOUT = 60 * 60 * 1000; // 60 minutes
+const WARNING_BEFORE = 5 * 60 * 1000; // warn 5 min before
 
 const initialState = {
   user: null,
@@ -13,10 +13,13 @@ const initialState = {
   loginError: null,
   sessionWarning: false,
   isLoading: false,
+  isInitializing: true,
 };
 
 function authReducer(state, action) {
   switch (action.type) {
+    case 'INITIALIZE_DONE':
+      return { ...state, isInitializing: false };
     case 'LOGIN_START':
       return { ...state, isLoading: true, loginError: null };
     case 'LOGIN_SUCCESS':
@@ -28,11 +31,12 @@ function authReducer(state, action) {
         loginError: null,
         isLoading: false,
         sessionWarning: false,
+        isInitializing: false,
       };
     case 'LOGIN_ERROR':
-      return { ...state, loginError: action.payload, isLoading: false };
+      return { ...state, loginError: action.payload, isLoading: false, isInitializing: false };
     case 'LOGOUT':
-      return { ...initialState };
+      return { ...initialState, isInitializing: false };
     case 'SESSION_WARNING':
       return { ...state, sessionWarning: true };
     case 'SESSION_EXTEND':
@@ -83,7 +87,10 @@ export function AuthProvider({ children }) {
         })
         .catch(() => {
           api.logout();
+          dispatch({ type: 'INITIALIZE_DONE' });
         });
+    } else {
+      dispatch({ type: 'INITIALIZE_DONE' });
     }
   }, []);
 
@@ -142,8 +149,12 @@ export function AuthProvider({ children }) {
   }, [startSessionTimer, logout]);
 
   const switchRole = useCallback((role) => {
-    dispatch({ type: 'SWITCH_ROLE', payload: role });
-    startSessionTimer();
+    if (import.meta.env.DEV) {
+      dispatch({ type: 'SWITCH_ROLE', payload: role });
+      startSessionTimer();
+    } else {
+      console.warn("Role switching is strictly disabled in production builds.");
+    }
   }, [startSessionTimer]);
 
   const markVoted = useCallback((electionId) => {
@@ -156,7 +167,7 @@ export function AuthProvider({ children }) {
   // Reset timer on user activity
   useEffect(() => {
     if (!state.isAuthenticated) return;
-    
+
     const handleActivity = () => {
       const now = Date.now();
       if (now - activityRef.current > 10000) {
@@ -166,10 +177,10 @@ export function AuthProvider({ children }) {
         }
       }
     };
-    
+
     window.addEventListener('mousemove', handleActivity);
     window.addEventListener('keydown', handleActivity);
-    
+
     return () => {
       window.removeEventListener('mousemove', handleActivity);
       window.removeEventListener('keydown', handleActivity);

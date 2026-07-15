@@ -8,14 +8,14 @@ export default function VoterPortal() {
   const { user, markVoted } = useAuth();
   const { elections, getElectionCandidates, castVote, addToast, departments } = useElection();
 
-  const [step, setStep]                         = useState(0); // 0=list, 1=review, 3=receipt
+  const [step, setStep] = useState(0); // 0=list, 1=review, 3=receipt
   const [selectedElection, setSelectedElection] = useState(null);
   const [selectedCandidates, setSelectedCandidates] = useState({}); // maps position/category to candidate object
-  const [confirmOpen, setConfirmOpen]           = useState(false);
-  const [submitting, setSubmitting]             = useState(false);
-  const [receipt, setReceipt]                   = useState(null);
-  const [confetti, setConfetti]                 = useState(false);
-  const [showRulesModal, setShowRulesModal]     = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [receipt, setReceipt] = useState(null);
+  const [confetti, setConfetti] = useState(false);
+  const [showRulesModal, setShowRulesModal] = useState(false);
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
 
   const eligibleElections = elections.filter(e =>
@@ -32,7 +32,7 @@ export default function VoterPortal() {
       setShowRulesModal(true);
     }
   };
-  const reset        = () => { setStep(0); setSelectedElection(null); setSelectedCandidates({}); setReceipt(null); setShowRulesModal(false); setCurrentCategoryIndex(0); };
+  const reset = () => { setStep(0); setSelectedElection(null); setSelectedCandidates({}); setReceipt(null); setShowRulesModal(false); setCurrentCategoryIndex(0); };
 
   const handleSelectElection = el => { pickElection(el); };
 
@@ -46,11 +46,11 @@ export default function VoterPortal() {
       markVoted(selectedElection.id);
       const serverReceipt = result?.receipt;
       setReceipt({
-        hash:         serverReceipt?.hash || '0x???',
-        blockIndex:   serverReceipt?.blockIndex ?? '?',
-        blockHash:    serverReceipt?.blockHash  || '',
-        timestamp:    serverReceipt?.timestamp  || new Date().toISOString(),
-        txId:         serverReceipt?.txId       || `TX-${Date.now().toString(36).toUpperCase()}`,
+        hash: serverReceipt?.hash || '0x???',
+        blockIndex: serverReceipt?.blockIndex ?? '?',
+        blockHash: serverReceipt?.blockHash || '',
+        timestamp: serverReceipt?.timestamp || new Date().toISOString(),
+        txId: serverReceipt?.txId || `TX-${Date.now().toString(36).toUpperCase()}`,
         electionTitle: selectedElection.title,
       });
       setStep(3);
@@ -66,7 +66,7 @@ export default function VoterPortal() {
 
   /* ── Election List ── */
   if (step === 0) return (
-    <div style={{ maxWidth: 820, margin: '0 auto' }} className="animate-fade-in">
+    <div style={{ maxWidth: 820, margin: '0 auto', padding: '0 16px' }} className="animate-fade-in">
       {confetti && <Confetti />}
 
       <div style={{ marginBottom: 28 }}>
@@ -81,7 +81,7 @@ export default function VoterPortal() {
       </div>
 
       {/* Trust banner */}
-      <div style={{ background: 'linear-gradient(135deg, var(--navy-950), var(--navy-800))', borderRadius: 18, padding: '20px 24px', marginBottom: 28, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+      <div className="trust-banner-responsive" style={{ background: 'linear-gradient(135deg, var(--navy-950), var(--navy-800))', borderRadius: 18, padding: '20px 24px', marginBottom: 28, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Shield size={22} style={{ color: 'var(--accent-400)' }} />
         </div>
@@ -89,7 +89,7 @@ export default function VoterPortal() {
           <div style={{ fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 2 }}>Your Vote is Secure</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>All votes are anonymized, encrypted, and verifiable. You'll receive a unique receipt hash after voting.</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} className="trust-badges">
           <TrustBadge type="secure" /><TrustBadge type="verified" />
         </div>
       </div>
@@ -97,9 +97,9 @@ export default function VoterPortal() {
       {/* Election cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {eligibleElections.map((el, i) => {
-          const dept    = departments.find(d => d.id === el.departmentId);
-          const voted   = hasVoted(el.id);
-          const cands   = getElectionCandidates(el.id);
+          const dept = departments.find(d => d.id === el.departmentId);
+          const voted = hasVoted(el.id);
+          const cands = getElectionCandidates(el.id);
           const turnout = el.eligibleVoterCount > 0 ? Math.round((el.totalVotesCast / el.eligibleVoterCount) * 100) : 0;
           const clickable = el.status === 'active' && !voted;
 
@@ -159,7 +159,7 @@ export default function VoterPortal() {
   const categoryCandidates = currentCategory ? candidates.filter(c => c.position === currentCategory) : [];
 
   if (step === 1) return (
-    <div style={{ maxWidth: 820, margin: '0 auto' }} className="animate-fade-in">
+    <div style={{ maxWidth: 820, margin: '0 auto', padding: '0 16px' }} className="animate-fade-in">
       <button onClick={reset} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--navy-400)', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 22, padding: 0 }}>
         <ArrowLeft size={15} /> Back to Elections
       </button>
@@ -285,15 +285,15 @@ export default function VoterPortal() {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '24px 20px',
+                    justifyContent: 'center',
+                    padding: '28px 20px 24px 20px',
                     cursor: 'pointer',
                     borderRadius: 16,
-                    border: `2px solid ${sel ? 'var(--accent-500)' : 'var(--border)'}`,
+                    border: `2px solid ${sel ? 'var(--green-600)' : 'var(--border)'}`,
                     background: sel ? 'linear-gradient(135deg, var(--green-50), #fff)' : 'var(--bg-white)',
                     boxShadow: sel ? '0 8px 30px rgba(46,125,50,0.08)' : '0 4px 12px rgba(0,0,0,0.02)',
                     transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                    aspectRatio: '1 / 1',
+                    minHeight: 290,
                   }}
                   onClick={() => setSelectedCandidates(p => ({ ...p, [currentCategory]: c }))} role="radio" aria-checked={sel} tabIndex={0}
                   onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedCandidates(p => ({ ...p, [currentCategory]: c }))}>
@@ -306,8 +306,8 @@ export default function VoterPortal() {
                     width: 22,
                     height: 22,
                     borderRadius: '50%',
-                    border: `2px solid ${sel ? 'var(--accent-500)' : 'var(--navy-200)'}`,
-                    background: sel ? 'var(--accent-500)' : 'transparent',
+                    border: `2px solid ${sel ? 'var(--green-600)' : 'var(--navy-200)'}`,
+                    background: sel ? 'var(--green-600)' : 'transparent',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -320,26 +320,26 @@ export default function VoterPortal() {
                   {/* Candidate Image/Avatar */}
                   <div style={{ width: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                     {c.picture ? (
-                      <img src={c.picture} alt={c.name} style={{ width: 130, height: 130, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      <img src={c.picture} alt={c.name} style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
                     ) : (
-                      <div style={{ width: 130, height: 130, borderRadius: '50%', background: `linear-gradient(135deg, ${c.color || 'var(--green-600)'}, ${c.color || 'var(--green-600)'}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 36, border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+                      <div style={{ width: 120, height: 120, borderRadius: '50%', background: `linear-gradient(135deg, ${c.color || 'var(--green-600)'}, ${c.color || 'var(--green-600)'}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 32, border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
                         {c.name.split(' ').map(n => n[0]).join('')}
                       </div>
                     )}
                   </div>
 
                   {/* Candidate Details */}
-                  <div style={{ textAlign: 'center', width: '100%' }}>
-                    <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--navy-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--navy-400)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.department}</div>
+                  <div style={{ textAlign: 'center', width: '100%', marginTop: 12 }}>
+                    <div style={{ fontWeight: 850, fontSize: '15px', color: 'var(--navy-900)', lineHeight: 1.3, wordBreak: 'break-word' }}>{c.name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--navy-400)', marginTop: 4, wordBreak: 'break-word' }}>{c.department}</div>
                     <div style={{
                       background: 'var(--green-50)',
                       color: 'var(--green-800)',
-                      padding: '2px 10px',
+                      padding: '3px 12px',
                       borderRadius: 99,
-                      fontSize: 10.5,
+                      fontSize: '11px',
                       fontWeight: 700,
-                      marginTop: 6,
+                      marginTop: 8,
                       display: 'inline-block'
                     }}>{c.position}</div>
                   </div>
@@ -351,7 +351,7 @@ export default function VoterPortal() {
       )}
 
       {/* Navigation Controls */}
-      <div style={{
+      <div className="voter-actions-row" style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -373,7 +373,7 @@ export default function VoterPortal() {
           {currentCategoryIndex > 0 ? 'Previous Position' : 'Back to Elections'}
         </button>
 
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div className="buttons-group" style={{ display: 'flex', gap: 12 }}>
           {currentCategoryIndex < activeCategories.length - 1 ? (
             <button
               className="btn btn-primary"
@@ -387,9 +387,9 @@ export default function VoterPortal() {
               disabled={!allCategoriesSelected}
               onClick={() => setConfirmOpen(true)}
               style={{
-                background: 'var(--accent-500)',
-                borderColor: 'var(--accent-600)',
-                color: 'var(--gray-900)'
+                background: 'var(--green-600)',
+                borderColor: 'var(--green-700)',
+                color: 'var(--white)'
               }}
             >
               <Vote size={16} /> Proceed to Vote
@@ -403,49 +403,49 @@ export default function VoterPortal() {
         title="Confirm Your Vote" confirmText={submitting ? 'Submitting…' : 'Cast My Vote'}>
         {submitting
           ? <div style={{ textAlign: 'center', padding: '28px 0' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-                <Loader2 size={26} style={{ color: 'var(--accent-500)' }} className="animate-spin" />
-              </div>
-              <p style={{ fontWeight: 700, color: 'var(--navy-700)' }}>Encrypting and recording your vote…</p>
-              <p style={{ fontSize: 12, color: 'var(--navy-400)', marginTop: 4 }}>Please do not close this window</p>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <Loader2 size={26} style={{ color: 'var(--accent-500)' }} className="animate-spin" />
             </div>
+            <p style={{ fontWeight: 700, color: 'var(--navy-700)' }}>Encrypting and recording your vote…</p>
+            <p style={{ fontSize: 12, color: 'var(--navy-400)', marginTop: 4 }}>Please do not close this window</p>
+          </div>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
-              <div style={{ background: 'var(--navy-50)', borderRadius: 12, padding: '14px 16px' }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Your Selections</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {Object.entries(selectedCandidates).map(([category, candidate]) => (
-                    <div key={category} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--navy-900)' }}>{candidate.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--accent-500)', fontWeight: 700 }}>{category}</div>
-                      </div>
-                      {candidate.picture ? (
-                        <img src={candidate.picture} alt={candidate.name} style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover' }} />
-                      ) : (
-                        <div style={{ width: 34, height: 34, borderRadius: 6, background: candidate.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 12 }}>
-                          {candidate.name.split(' ').map(n => n[0]).join('')}
-                        </div>
-                      )}
+            <div style={{ background: 'var(--navy-50)', borderRadius: 12, padding: '14px 16px' }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Your Selections</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {Object.entries(selectedCandidates).map(([category, candidate]) => (
+                  <div key={category} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--navy-900)' }}>{candidate.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--accent-500)', fontWeight: 700 }}>{category}</div>
                     </div>
-                  ))}
-                </div>
-              </div>
-              <div style={{ background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 10, padding: '11px 14px', display: 'flex', gap: 8 }}>
-                <AlertTriangle size={15} style={{ color: 'var(--amber-500)', flexShrink: 0, marginTop: 1 }} />
-                <p style={{ fontSize: 13, color: 'var(--amber-700)' }}>This action is <strong>irreversible</strong>. Your vote cannot be changed once submitted.</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--emerald-600)', fontSize: 12, fontWeight: 600 }}>
-                <Lock size={13} />Your vote will be encrypted and anonymized
+                    {candidate.picture ? (
+                      <img src={candidate.picture} alt={candidate.name} style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: 34, height: 34, borderRadius: 6, background: candidate.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 12 }}>
+                        {candidate.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
+            <div style={{ background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 10, padding: '11px 14px', display: 'flex', gap: 8 }}>
+              <AlertTriangle size={15} style={{ color: 'var(--amber-500)', flexShrink: 0, marginTop: 1 }} />
+              <p style={{ fontSize: 13, color: 'var(--amber-700)' }}>This action is <strong>irreversible</strong>. Your vote cannot be changed once submitted.</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--emerald-600)', fontSize: 12, fontWeight: 600 }}>
+              <Lock size={13} />Your vote will be encrypted and anonymized
+            </div>
+          </div>
         }
       </ConfirmModal>
 
       {/* Election Rules Popup Modal */}
       {selectedElection && (
-        <ConfirmModal 
-          isOpen={showRulesModal} 
-          onClose={() => { setShowRulesModal(false); reset(); }} 
+        <ConfirmModal
+          isOpen={showRulesModal}
+          onClose={() => { setShowRulesModal(false); reset(); }}
           onConfirm={() => setShowRulesModal(false)}
           title="Election Rules"
           confirmText="I Agree & Proceed"
@@ -488,13 +488,13 @@ export default function VoterPortal() {
 
           <div style={{ background: 'var(--navy-50)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
             {[
-              { label: 'Election',       val: receipt.electionTitle,                         mono: false },
-              { label: 'Block Index',    val: `#${receipt.blockIndex}`,                      mono: true  },
-              { label: 'Transaction ID', val: receipt.txId,                                  mono: true  },
-              { label: 'Vote Receipt',   val: receipt.hash.slice(0, 22) + '…',               mono: true  },
-              { label: 'Block Hash',     val: receipt.blockHash ? receipt.blockHash.slice(0,16) + '…' : '—', mono: true },
-              { label: 'Timestamp',      val: new Date(receipt.timestamp).toLocaleString(),   mono: false },
-              { label: 'Status',         val: '✓ Verified & Recorded on Blockchain',          mono: false },
+              { label: 'Election', val: receipt.electionTitle, mono: false },
+              { label: 'Block Index', val: `#${receipt.blockIndex}`, mono: true },
+              { label: 'Transaction ID', val: receipt.txId, mono: true },
+              { label: 'Vote Receipt', val: receipt.hash.slice(0, 22) + '…', mono: true },
+              { label: 'Block Hash', val: receipt.blockHash ? receipt.blockHash.slice(0, 16) + '…' : '—', mono: true },
+              { label: 'Timestamp', val: new Date(receipt.timestamp).toLocaleString(), mono: false },
+              { label: 'Status', val: '✓ Verified & Recorded on Blockchain', mono: false },
             ].map(({ label, val, mono }) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 12, color: 'var(--navy-400)', fontWeight: 600 }}>{label}</span>

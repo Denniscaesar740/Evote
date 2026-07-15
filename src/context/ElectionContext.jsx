@@ -14,6 +14,8 @@ const initialState = {
   announcements: [],
   anomalies: [],
   toasts: [],
+  notifications: [],
+  unreadNotificationsCount: 0,
   loading: true,
 };
 
@@ -53,6 +55,22 @@ function electionReducer(state, action) {
       return { ...state, announcements: [action.payload, ...state.announcements] };
     case 'ADD_TOAST':
       return { ...state, toasts: [...state.toasts, { id: Date.now(), ...action.payload }] };
+    case 'SET_NOTIFICATIONS':
+      return { ...state, notifications: action.payload };
+    case 'SET_UNREAD_COUNT':
+      return { ...state, unreadNotificationsCount: action.payload };
+    case 'MARK_NOTIF_READ':
+      return {
+        ...state,
+        notifications: state.notifications.map(n => n.id === action.payload ? { ...n, read: true } : n),
+        unreadNotificationsCount: Math.max(0, state.unreadNotificationsCount - 1)
+      };
+    case 'MARK_ALL_NOTIFS_READ':
+      return {
+        ...state,
+        notifications: state.notifications.map(n => ({ ...n, read: true })),
+        unreadNotificationsCount: 0
+      };
     case 'REMOVE_TOAST':
       return { ...state, toasts: state.toasts.filter(t => t.id !== action.payload) };
     default:
@@ -82,6 +100,8 @@ export function ElectionProvider({ children }) {
         let announcements = [];
         let voteRecords = [];
         let anomalies = [];
+        let notifications = [];
+        let unreadCount = 0;
 
         if (user?.role === 'admin' || user?.role === 'auditor') {
           [auditLogs, announcements, voteRecords, anomalies] = await Promise.all([
@@ -95,9 +115,29 @@ export function ElectionProvider({ children }) {
           users = await api.getUsers().catch(() => []);
         }
 
+        // Fetch notifications for all roles (voters, admins, auditors)
+        try {
+          notifications = await api.getNotifications();
+          const countRes = await api.getUnreadNotificationsCount();
+          unreadCount = countRes.count;
+        } catch (e) {
+          console.error('Failed to load notifications:', e);
+        }
+
         dispatch({
           type: 'SET_DATA',
-          payload: { elections, candidates, departments, auditLogs, users, announcements, voteRecords, anomalies },
+          payload: {
+            elections,
+            candidates,
+            departments,
+            auditLogs,
+            users,
+            announcements,
+            voteRecords,
+            anomalies,
+            notifications,
+            unreadNotificationsCount: unreadCount
+          },
         });
       } catch (err) {
         console.error('Failed to fetch initial data:', err);
@@ -106,6 +146,20 @@ export function ElectionProvider({ children }) {
     };
 
     fetchData();
+
+    // Set up brief polling for unread notifications count and election statuses (every 30s)
+    const interval = setInterval(async () => {
+      try {
+        const countRes = await api.getUnreadNotificationsCount();
+        dispatch({ type: 'SET_UNREAD_COUNT', payload: countRes.count });
+
+        // Dynamic synchronization for auto-closing/updating elections
+        const elections = await api.getElections();
+        dispatch({ type: 'SET_ELECTIONS', payload: elections });
+      } catch (e) { }
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [isAuthenticated, user?.role]);
 
   // ─── Actions that call the API ───
@@ -196,8 +250,8 @@ export function ElectionProvider({ children }) {
     return res;
   }, []);
 
-  const clearVoterRegistry = useCallback(async (year) => {
-    const res = await api.clearVoterRegistry(year);
+  const clearVoterRegistry = useCallback(async (year, password) => {
+    const res = await api.clearVoterRegistry(year, password);
     const users = await api.getUsers();
     dispatch({ type: 'SET_USERS', payload: users });
     return res;
@@ -267,6 +321,26 @@ export function ElectionProvider({ children }) {
     createDepartment,
     updateDepartment,
     clearAnomaly,
+    fetchNotifications: async () => {
+      try {
+        const list = await api.getNotifications();
+        dispatch({ type: 'SET_NOTIFICATIONS', payload: list });
+        const countRes = await api.getUnreadNotificationsCount();
+        dispatch({ type: 'SET_UNREAD_COUNT', payload: countRes.count });
+      } catch (e) { }
+    },
+    markNotificationRead: async (id) => {
+      try {
+        await api.markNotificationRead(id);
+        dispatch({ type: 'MARK_NOTIF_READ', payload: id });
+      } catch (e) { }
+    },
+    markAllNotificationsRead: async () => {
+      try {
+        await api.markAllNotificationsRead();
+        dispatch({ type: 'MARK_ALL_NOTIFS_READ' });
+      } catch (e) { }
+    }
   };
 
   return <ElectionContext.Provider value={value}>{children}</ElectionContext.Provider>;

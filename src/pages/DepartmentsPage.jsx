@@ -8,29 +8,29 @@ const DEPT_COLORS = ['var(--green-600)', 'var(--gold-500)', 'var(--green-700)', 
 
 const FACULTY_GRAD = {
   'Faculty of Computing & IT': 'linear-gradient(135deg,var(--green-600),var(--green-700))',
-  'Faculty of Business':        'linear-gradient(135deg,var(--gold-500),var(--gold-600))',
-  'Faculty of Engineering':     'linear-gradient(135deg,var(--green-700),var(--green-800))',
+  'Faculty of Business': 'linear-gradient(135deg,var(--gold-500),var(--gold-600))',
+  'Faculty of Engineering': 'linear-gradient(135deg,var(--green-700),var(--green-800))',
   'Faculty of Law & Social Sciences': 'linear-gradient(135deg,var(--gold-600),var(--gold-700))',
 };
 
 export default function DepartmentsPage() {
-  const { user }    = useAuth();
+  const { user } = useAuth();
   const { departments, elections, candidates, addToast, createDepartment, updateDepartment } = useElection();
-  const [selected, setSelected]  = useState(null);
-  const [editMode, setEditMode]  = useState(false);
-  const [editName, setEditName]  = useState('');
-  const [addOpen, setAddOpen]    = useState(false);
-  const [newDept, setNewDept]    = useState({ id: '', name: '', code: '', faculty: '' });
+  const [selected, setSelected] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const [newDept, setNewDept] = useState({ id: '', name: '', code: '', faculty: '' });
 
   const isAdmin = user?.role === 'admin';
 
   const getDeptStats = (deptId) => {
-    const deptElecs    = elections.filter(e => e.departmentId === deptId);
-    const deptCands    = candidates.filter(c => deptElecs.some(e => e.id === c.electionId));
-    const totalVotes   = deptElecs.reduce((s, e) => s + e.totalVotesCast, 0);
+    const deptElecs = elections.filter(e => e.departmentId === deptId);
+    const deptCands = candidates.filter(c => deptElecs.some(e => e.id === c.electionId));
+    const totalVotes = deptElecs.reduce((s, e) => s + e.totalVotesCast, 0);
     const totalEligible = deptElecs.reduce((s, e) => s + e.eligibleVoterCount, 0);
-    const turnout      = totalEligible > 0 ? Math.round((totalVotes / totalEligible) * 100) : 0;
-    const active       = deptElecs.filter(e => e.status === 'active').length;
+    const turnout = totalEligible > 0 ? Math.round((totalVotes / totalEligible) * 100) : 0;
+    const active = deptElecs.filter(e => e.status === 'active').length;
     return { elections: deptElecs.length, candidates: deptCands.length, totalVotes, turnout, active, deptElecs };
   };
 
@@ -125,25 +125,25 @@ export default function DepartmentsPage() {
                 </div>
                 {editMode && isSelected
                   ? <div onClick={e => e.stopPropagation()} style={{ marginTop: 12 }}>
-                      <input value={editName} onChange={e => setEditName(e.target.value)} className="form-input" style={{ marginBottom: 8, background: 'rgba(255,255,255,0.9)' }} />
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => handleSaveName(dept)} className="btn btn-sm" style={{ background: '#fff', color: 'var(--emerald-600)', border: 'none', flex: 1 }}><Check size={13} />Save</button>
-                        <button onClick={() => setEditMode(false)} className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', flex: 1 }}><X size={13} /></button>
-                      </div>
+                    <input value={editName} onChange={e => setEditName(e.target.value)} className="form-input" style={{ marginBottom: 8, background: 'rgba(255,255,255,0.9)' }} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => handleSaveName(dept)} className="btn btn-sm" style={{ background: '#fff', color: 'var(--emerald-600)', border: 'none', flex: 1 }}><Check size={13} />Save</button>
+                      <button onClick={() => setEditMode(false)} className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', flex: 1 }}><X size={13} /></button>
                     </div>
+                  </div>
                   : <>
-                      <div style={{ fontWeight: 900, fontSize: 17, color: '#fff', marginTop: 12, letterSpacing: '-0.2px' }}>{dept.name}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>{dept.faculty}</div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>{dept.code}</div>
-                    </>
+                    <div style={{ fontWeight: 900, fontSize: 17, color: '#fff', marginTop: 12, letterSpacing: '-0.2px' }}>{dept.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>{dept.faculty}</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>{dept.code}</div>
+                  </>
                 }
               </div>
 
               {/* Stats */}
               <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                 {[
-                  { icon: Users,   label: 'Students', value: dept.studentCount || 0 },
-                  { icon: Vote,    label: 'Elections', value: stats.elections },
+                  { icon: Users, label: 'Students', value: dept.studentCount || 0 },
+                  { icon: Vote, label: 'Elections', value: stats.elections },
                   { icon: BarChart3, label: 'Turnout', value: `${stats.turnout}%` },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} style={{ textAlign: 'center' }}>

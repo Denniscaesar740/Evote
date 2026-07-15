@@ -1,28 +1,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { useElection } from '../context/ElectionContext';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 import { LayoutDashboard, ClipboardList, Users, UserCheck, FileText, PieChart, Plus, Upload, ShieldCheck, ShieldAlert, FileDown, Clock, CheckCircle, Check, Settings, Calendar, UserPlus, Bell, Trash2, FileSpreadsheet, Download, AlertTriangle, Eye, X, Layers } from 'lucide-react';
 import { StatCard, StatusBadge, CountdownTimer, ConfirmModal } from '../components/SharedUI';
-import * as XLSX from 'xlsx';
+import readXlsxFile from 'read-excel-file/browser';
 
 const TABS = [
-  { id: 'dashboard',  label: 'Dashboard',      icon: LayoutDashboard },
-  { id: 'elections',  label: 'Elections',       icon: ClipboardList },
-  { id: 'candidates', label: 'Candidates',      icon: Users },
-  { id: 'voters',     label: 'Voter Registry',  icon: UserCheck },
-  { id: 'users',      label: 'Users',           icon: UserPlus },
-  { id: 'notices',    label: 'Notices',         icon: Bell },
-  { id: 'calendar',   label: 'Calendar',        icon: Calendar },
-  { id: 'config',     label: 'Settings',       icon: Settings },
-  { id: 'results',    label: 'Results',         icon: PieChart },
-  { id: 'audit',      label: 'Audit Log',       icon: FileText },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'elections', label: 'Elections', icon: ClipboardList },
+  { id: 'candidates', label: 'Candidates', icon: Users },
+  { id: 'voters', label: 'Voter Registry', icon: UserCheck },
+  { id: 'users', label: 'Users', icon: UserPlus },
+  { id: 'notices', label: 'Notices', icon: Bell },
+  { id: 'calendar', label: 'Calendar', icon: Calendar },
+  { id: 'config', label: 'Settings', icon: Settings },
+  { id: 'results', label: 'Results', icon: PieChart },
+  { id: 'audit', label: 'Audit Log', icon: FileText },
 ];
 
 const ROLE_COLORS = {
-  Admin:   { bg: 'var(--green-50)',  color: 'var(--green-700)' },
-  Auditor: { bg: 'var(--gold-50)',   color: 'var(--gold-700)' },
-  System:  { bg: 'var(--gray-100)',  color: 'var(--gray-600)' },
-  Voter:   { bg: 'var(--green-50)',  color: 'var(--green-600)' },
+  Admin: { bg: 'var(--green-50)', color: 'var(--green-700)' },
+  Auditor: { bg: 'var(--gold-50)', color: 'var(--gold-700)' },
+  System: { bg: 'var(--gray-100)', color: 'var(--gray-600)' },
+  Voter: { bg: 'var(--green-50)', color: 'var(--green-600)' },
 };
 
 export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
@@ -35,8 +36,8 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   }, [activeTab]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showCandModal,   setShowCandModal]   = useState(false);
-  const [csvFile, setCsvFile]   = useState(null);
+  const [showCandModal, setShowCandModal] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef(null);
 
@@ -73,6 +74,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
 
   // User Management States
   const [searchUser, setSearchUser] = useState('');
+  const [editingUser, setEditingUser] = useState(null);
   const [searchVoter, setSearchVoter] = useState('');
   const [filterDept, setFilterDept] = useState('all');
   const [filterYear, setFilterYear] = useState('all');
@@ -84,17 +86,21 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
 
   const [editingElection, setEditingElection] = useState(null);
 
-  const activeCount  = elections.filter(e => e.status === 'active').length;
-  const totalVotes   = elections.reduce((s, e) => s + e.totalVotesCast, 0);
-  const totalElig    = elections.filter(e => e.status === 'active').reduce((s, e) => s + e.eligibleVoterCount, 0);
-  const turnout      = totalElig > 0 ? Math.round((totalVotes / totalElig) * 100) : 68;
-  
-  const voterUsers   = users.filter(u => u.role === 'voter');
-  
+  const activeCount = elections.filter(e => e.status === 'active').length;
+  const totalVotes = elections.reduce((s, e) => s + e.totalVotesCast, 0);
+
+  // Calculate average turnout across active and closed elections in real-time
+  const completedOrActiveElections = elections.filter(e => e.status === 'active' || e.status === 'closed');
+  const totalEligibleForTurnout = completedOrActiveElections.reduce((s, e) => s + e.eligibleVoterCount, 0);
+  const totalVotesForTurnout = completedOrActiveElections.reduce((s, e) => s + e.totalVotesCast, 0);
+  const turnout = totalEligibleForTurnout > 0 ? Math.round((totalVotesForTurnout / totalEligibleForTurnout) * 100) : 0;
+
+  const voterUsers = users.filter(u => u.role === 'voter');
+
   const filteredVoters = voterUsers
     .filter(u => {
-      const matchesSearch = !searchVoter || 
-        u.name.toLowerCase().includes(searchVoter.toLowerCase()) || 
+      const matchesSearch = !searchVoter ||
+        u.name.toLowerCase().includes(searchVoter.toLowerCase()) ||
         u.studentId.toLowerCase().includes(searchVoter.toLowerCase()) ||
         u.email.toLowerCase().includes(searchVoter.toLowerCase());
       const matchesDept = filterDept === 'all' || u.departmentId === filterDept;
@@ -131,7 +137,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const renderSortHeader = (field, label) => {
     const isSorted = sortField === field;
     return (
-      <th 
+      <th
         onClick={() => {
           if (isSorted) {
             setSortAsc(!sortAsc);
@@ -169,13 +175,14 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
       return;
     }
     try {
-      await updateElection(editingElection.id, {
+      await updateElection({
+        id: editingElection.id,
         title: editingElection.title,
         description: editingElection.description,
         type: editingElection.type,
         departmentId: editingElection.departmentId || null,
-        startTime: editingElection.startTime,
-        endTime: editingElection.endTime,
+        startTime: new Date(editingElection.startTime).toISOString(),
+        endTime: new Date(editingElection.endTime).toISOString(),
         eligibleVoterCount: Number(editingElection.eligibleVoterCount),
       });
       addToast({ type: 'success', title: 'Election Updated', message: `Election "${editingElection.title}" updated successfully.` });
@@ -189,7 +196,15 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     if (!newElec.title || !newElec.startTime || !newElec.endTime) { addToast({ type: 'error', message: 'Fill all required fields.' }); return; }
     if (!newElec.categories || newElec.categories.length === 0) { addToast({ type: 'error', message: 'Define at least one ballot position.' }); return; }
     const electionId = `elec-${Date.now()}`;
-    createElection({ ...newElec, id: electionId, status: 'draft', totalVotesCast: 0, createdBy: user.name });
+    createElection({
+      ...newElec,
+      id: electionId,
+      status: 'draft',
+      totalVotesCast: 0,
+      createdBy: user.name,
+      startTime: new Date(newElec.startTime).toISOString(),
+      endTime: new Date(newElec.endTime).toISOString()
+    });
 
     addToast({ type: 'success', title: 'Election Created', message: `"${newElec.title}" saved as draft.` });
     setShowCreateModal(false);
@@ -261,6 +276,30 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     setNewUser({ name: '', studentId: '', email: '', role: 'voter', departmentId: '', phoneNumber: '', year: '' });
   };
 
+  const handleUpdateUser = async () => {
+    if (!editingUser.name || !editingUser.studentId || !editingUser.email) {
+      addToast({ type: 'error', message: 'Fill all required fields.' });
+      return;
+    }
+    try {
+      await updateUser({
+        id: editingUser.id,
+        name: editingUser.name,
+        studentId: editingUser.studentId,
+        email: editingUser.email,
+        phoneNumber: editingUser.phoneNumber,
+        year: editingUser.year,
+        role: editingUser.role,
+        departmentId: editingUser.departmentId || null,
+        status: editingUser.status
+      });
+      addToast({ type: 'success', title: 'User Updated', message: `User "${editingUser.name}" details updated successfully.` });
+      setEditingUser(null);
+    } catch (err) {
+      addToast({ type: 'error', title: 'Update Failed', message: err.message || 'Could not update user.' });
+    }
+  };
+
   // ─── CSV Parser ───
   const parseCSV = (csvText) => {
     const lines = [];
@@ -268,7 +307,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     let inQuotes = false;
     for (let i = 0; i < csvText.length; i++) {
       const char = csvText[i];
-      const nextChar = csvText[i+1];
+      const nextChar = csvText[i + 1];
       if (char === '"') {
         if (inQuotes && nextChar === '"') { row[row.length - 1] += '"'; i++; }
         else { inQuotes = !inQuotes; }
@@ -296,20 +335,13 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const readFileForPreview = (f) => {
     const isExcel = f.name.endsWith('.xlsx') || f.name.endsWith('.xls');
     if (isExcel) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        try {
-          const data = new Uint8Array(event.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          buildPreview(jsonData, f.name);
-        } catch (err) {
+      readXlsxFile(f)
+        .then((rows) => {
+          buildPreview(rows, f.name);
+        })
+        .catch((err) => {
           addToast({ type: 'error', title: 'Parse Error', message: err.message || 'Could not parse Excel file.' });
-        }
-      };
-      reader.onerror = () => addToast({ type: 'error', title: 'Read Error', message: 'Could not read file.' });
-      reader.readAsArrayBuffer(f);
+        });
     } else {
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -334,11 +366,11 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     const rawHeaders = cleanRows[0].map(h => String(h || '').trim());
 
     const nameIdx = headers.findIndex(h => h === 'name' || h === 'full name' || h === 'student name');
-    const idIdx   = headers.findIndex(h => h.includes('reference') || h.includes('ref') || h.includes('student') || h.includes('index'));
+    const idIdx = headers.findIndex(h => h.includes('reference') || h.includes('ref') || h.includes('student') || h.includes('index'));
     const emailIdx = headers.findIndex(h => h.includes('email') || h.includes('mail'));
-    const yearIdx  = headers.findIndex(h => h.includes('year') || h.includes('level') || h.includes('class'));
+    const yearIdx = headers.findIndex(h => h.includes('year') || h.includes('level') || h.includes('class'));
     const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('tele') || h.includes('mobile') || h.includes('contact'));
-    const deptIdx  = headers.findIndex(h => h.includes('department') || h.includes('dept') || h.includes('faculty') || h.includes('programme') || h.includes('program'));
+    const deptIdx = headers.findIndex(h => h.includes('department') || h.includes('dept') || h.includes('faculty') || h.includes('programme') || h.includes('program'));
 
     if (nameIdx === -1 || idIdx === -1 || emailIdx === -1) {
       addToast({ type: 'error', title: 'Missing Columns', message: 'File must have Name, Student/Reference ID, and Email columns.' });
@@ -346,12 +378,12 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     }
 
     const mappedColumns = {
-      name:       { index: nameIdx,  header: rawHeaders[nameIdx],  label: 'Name' },
-      studentId:  { index: idIdx,    header: rawHeaders[idIdx],    label: 'Student/Ref ID' },
-      email:      { index: emailIdx, header: rawHeaders[emailIdx], label: 'Email' },
-      ...(yearIdx !== -1  && { year:       { index: yearIdx,  header: rawHeaders[yearIdx],  label: 'Year/Level' } }),
-      ...(phoneIdx !== -1 && { phone:      { index: phoneIdx, header: rawHeaders[phoneIdx], label: 'Phone' } }),
-      ...(deptIdx !== -1  && { department: { index: deptIdx,  header: rawHeaders[deptIdx],  label: 'Department' } }),
+      name: { index: nameIdx, header: rawHeaders[nameIdx], label: 'Name' },
+      studentId: { index: idIdx, header: rawHeaders[idIdx], label: 'Student/Ref ID' },
+      email: { index: emailIdx, header: rawHeaders[emailIdx], label: 'Email' },
+      ...(yearIdx !== -1 && { year: { index: yearIdx, header: rawHeaders[yearIdx], label: 'Year/Level' } }),
+      ...(phoneIdx !== -1 && { phone: { index: phoneIdx, header: rawHeaders[phoneIdx], label: 'Phone' } }),
+      ...(deptIdx !== -1 && { department: { index: deptIdx, header: rawHeaders[deptIdx], label: 'Department' } }),
     };
 
     const parsedRows = [];
@@ -403,12 +435,17 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     const confirmMsg = isYearSpecific
       ? `WARNING: Are you sure you want to clear the voter registry for ${year}? This will permanently delete ALL registered student voters in ${year}. This action cannot be undone.`
       : "WARNING: Are you sure you want to clear the entire voter registry? This will permanently delete ALL registered student voters. This action cannot be undone.";
-    
+
     if (!window.confirm(confirmMsg)) {
       return;
     }
+    const password = window.prompt("This is a highly destructive action. Please enter your administrator password to confirm:");
+    if (!password) {
+      addToast({ type: 'warning', message: 'Clear cancelled. Confirmation password is required.' });
+      return;
+    }
     try {
-      const res = await clearVoterRegistry(isYearSpecific ? year : undefined);
+      const res = await clearVoterRegistry(isYearSpecific ? year : undefined, password);
       addToast({ type: 'success', title: 'Registry Cleared', message: res.message || 'Voters deleted successfully.' });
     } catch (err) {
       addToast({ type: 'error', title: 'Clear Failed', message: err.message || 'Failed to clear voter registry.' });
@@ -449,10 +486,10 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     <div>
       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{label}</label>
       {opts.textarea
-        ? <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={opts.placeholder} className="form-input" style={{ height: 76, resize: 'none' }} />
+        ? <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={opts.placeholder} className="form-input" style={{ height: 76, resize: 'none', ...opts.style }} disabled={opts.disabled} />
         : opts.select
-          ? <select value={value} onChange={e => onChange(e.target.value)} className="form-input">{opts.select}</select>
-          : <input type={opts.type || 'text'} value={value} onChange={e => onChange(e.target.value)} placeholder={opts.placeholder} className={`form-input${opts.mono ? ' form-input-mono' : ''}`} required={opts.required} />
+          ? <select value={value} onChange={e => onChange(e.target.value)} className="form-input" disabled={opts.disabled} style={opts.style}>{opts.select}</select>
+          : <input type={opts.type || 'text'} value={value} onChange={e => onChange(e.target.value)} placeholder={opts.placeholder} className={`form-input${opts.mono ? ' form-input-mono' : ''}`} required={opts.required} disabled={opts.disabled} style={opts.style} />
       }
     </div>
   );
@@ -462,44 +499,99 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
 
       {/* ── DASHBOARD ── */}
       {tab === 'dashboard' && (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
-            <StatCard icon={ClipboardList} label="Total Elections"  value={elections.length} color="accent" />
-            <StatCard icon={Clock}         label="Active Elections" value={activeCount}       color="emerald" />
-            <StatCard icon={CheckCircle}   label="Votes Cast"       value={totalVotes}        color="purple" />
-            <StatCard icon={PieChart}      label="Avg Turnout"      value={`${turnout}%`}     color="amber" />
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+
+          <div style={{ paddingBottom: 10, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+            <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--navy-900)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 8, height: 26, background: 'var(--gold-500)', borderRadius: 4 }} />
+              Administrator Overview
+            </h1>
+            <p style={{ fontSize: 13, color: 'var(--navy-400)', marginTop: 4, marginLeft: 18 }}>System telemetry and election operations at a glance.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 20 }}>
-            <div className="card card-padded">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--navy-900)' }}>Active Poll Timers</h3>
-                <span style={{ fontSize: 11, color: 'var(--navy-400)', fontWeight: 500 }}>Real-time</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
+            <div style={{ background: 'linear-gradient(135deg, #ffffff, #f9fafb)', borderRadius: 16, padding: 24, boxShadow: '0 4px 20px -5px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -15, right: -15, background: 'var(--green-50)', width: 80, height: 80, borderRadius: '50%', opacity: 0.5 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ background: 'var(--green-100)', color: 'var(--green-700)', padding: 10, borderRadius: 10 }}><ClipboardList size={22} /></div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>All Elections</div>
+              </div>
+              <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--navy-900)' }}>{elections.length}</div>
+            </div>
+
+            <div style={{ background: 'linear-gradient(135deg, #ffffff, #f9fafb)', borderRadius: 16, padding: 24, boxShadow: '0 4px 20px -5px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -15, right: -15, background: '#dcfce7', width: 80, height: 80, borderRadius: '50%', opacity: 0.5 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ background: 'var(--green-600)', color: '#fff', padding: 10, borderRadius: 10, boxShadow: '0 4px 12px rgba(37, 99, 38, 0.3)' }}><Clock size={22} /></div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Polls</div>
+              </div>
+              <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--green-600)' }}>{activeCount}</div>
+            </div>
+
+            <div style={{ background: 'linear-gradient(135deg, #ffffff, #f9fafb)', borderRadius: 16, padding: 24, boxShadow: '0 4px 20px -5px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -15, right: -15, background: 'var(--gold-50)', width: 80, height: 80, borderRadius: '50%', opacity: 0.5 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ background: 'var(--gold-500)', color: '#fff', padding: 10, borderRadius: 10, boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)' }}><CheckCircle size={22} /></div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Votes Cast</div>
+              </div>
+              <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--navy-900)' }}>{totalVotes.toLocaleString()}</div>
+            </div>
+
+            <div style={{ background: 'linear-gradient(135deg, #ffffff, #f9fafb)', borderRadius: 16, padding: 24, boxShadow: '0 4px 20px -5px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -15, right: -15, background: 'var(--gray-100)', width: 80, height: 80, borderRadius: '50%', opacity: 0.5 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ background: 'var(--navy-700)', color: '#fff', padding: 10, borderRadius: 10 }}><PieChart size={22} /></div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Avg Turnout</div>
+              </div>
+              <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--navy-900)' }}>{turnout}%</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 24 }}>
+            <div className="card card-padded" style={{ padding: 28 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                <h3 style={{ fontWeight: 800, fontSize: 18, color: 'var(--navy-900)' }}>Active Elections Engine</h3>
+                <div style={{ background: 'var(--green-50)', color: 'var(--green-700)', padding: '4px 12px', borderRadius: 99, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 6, height: 6, background: 'var(--green-500)', borderRadius: '50%' }} className="animate-pulse-slow" /> Real-time
+                </div>
               </div>
               {elections.filter(e => e.status === 'active').map(el => (
-                <div key={el.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid var(--navy-50)' }}>
+                <div key={el.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.7)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 12, transition: 'all 0.2s', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--green-300)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'} onClick={() => { setElecFilter('active'); setTab('elections'); }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy-800)' }}>{el.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--navy-400)', marginTop: 2 }}>{departments.find(d => d.id === el.departmentId)?.name || 'Department of Computing and Data Analytics'}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy-900)', marginBottom: 4 }}>{el.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--navy-400)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Layers size={13} /> {departments.find(d => d.id === el.departmentId)?.name || 'General / Campus-wide'}
+                    </div>
                   </div>
                   <CountdownTimer endTime={el.endTime} />
                 </div>
               ))}
-              {!elections.filter(e => e.status === 'active').length && <p style={{ color: 'var(--navy-400)', fontSize: 13 }}>No active elections.</p>}
+              {!elections.filter(e => e.status === 'active').length && (
+                <div style={{ padding: 40, textAlign: 'center', background: 'var(--gray-50)', borderRadius: 12, border: '1px dashed var(--gray-300)' }}>
+                  <Clock size={32} color="var(--gray-400)" style={{ margin: '0 auto 12px' }} />
+                  <p style={{ color: 'var(--navy-500)', fontSize: 14, fontWeight: 500 }}>No polls are currently running.</p>
+                </div>
+              )}
             </div>
 
-            <div style={{ background: 'linear-gradient(145deg, var(--green-900), var(--green-800))', borderRadius: 16, padding: 24, color: '#fff', minWidth: 220 }}>
-              <h3 style={{ fontWeight: 800, fontSize: 15, marginBottom: 6 }}>Quick Actions</h3>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 18 }}>Administrative shortcuts</p>
-              {[
-                { label: 'Create Election', action: () => { setWizardStep(1); setShowCreateModal(true); }, color: 'var(--gold-400)' },
-                { label: 'Add Candidate',   action: () => setShowCandModal(true),   color: 'var(--green-200)' },
-                { label: 'Import Voters',   action: () => fileRef.current?.click(), color: 'var(--gold-300)' },
-              ].map(a => (
-                <button key={a.label} onClick={a.action} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '11px 14px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>
-                  {a.label}<Plus size={14} style={{ color: a.color }} />
-                </button>
-              ))}
+            <div style={{ background: 'linear-gradient(145deg, var(--green-950), var(--green-800))', borderRadius: 16, padding: '28px 24px', color: '#fff', position: 'relative', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+              <div style={{ position: 'absolute', top: -50, right: -50, background: 'radial-gradient(circle, rgba(251,191,36,0.3) 0%, transparent 70%)', width: 200, height: 200, pointerEvents: 'none' }} />
+              <h3 style={{ fontWeight: 800, fontSize: 18, marginBottom: 4 }}>Quick Console</h3>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 24 }}>Frequent portal operations</p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { label: 'Create New Election', action: () => { setWizardStep(1); setShowCreateModal(true); }, color: 'var(--gold-400)', icon: ClipboardList },
+                  { label: 'Register Candidate', action: () => setShowCandModal(true), color: '#a5d6a7', icon: UserPlus },
+                  { label: 'Import Voter Roster', action: () => fileRef.current?.click(), color: '#c8e6c9', icon: Upload },
+                ].map((a, idx) => (
+                  <button key={a.label} onClick={a.action} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '14px 16px', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', position: 'relative', overflow: 'hidden' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; e.currentTarget.style.transform = 'translateY(-2px)' }} onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.transform = 'translateY(0)' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: 8, borderRadius: 8 }}><a.icon size={16} style={{ color: a.color }} /></div>
+                    {a.label}
+                    <Plus size={14} style={{ color: 'rgba(255,255,255,0.3)', marginLeft: 'auto' }} />
+                  </button>
+                ))}
+              </div>
               <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleCSV} style={{ display: 'none' }} />
             </div>
           </div>
@@ -514,269 +606,270 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
 
         const filteredElections = elecFilter === 'all' ? elections
           : elecFilter === 'draft' ? draftEls
-          : elecFilter === 'active' ? activeEls
-          : closedEls;
+            : elecFilter === 'active' ? activeEls
+              : closedEls;
 
         return (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
-            <div>
-              <h2 style={{ fontWeight: 900, fontSize: 22, color: 'var(--navy-900)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, var(--green-500), var(--green-700))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ClipboardList size={20} color="#fff" />
-                </div>
-                Election Management
-              </h2>
-              <p style={{ fontSize: 13, color: 'var(--navy-400)', marginLeft: 50 }}>
-                Manage {elections.length} election{elections.length !== 1 ? 's' : ''} — create ballots, define positions, and register aspirants.
-              </p>
-            </div>
-            <button className="btn btn-primary" onClick={() => { setWizardStep(1); setShowCreateModal(true); }} style={{ borderRadius: 10, padding: '10px 20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 14px rgba(46,125,50,0.25)' }}>
-              <Plus size={16} /> Create New Election
-            </button>
-          </div>
-
-          {/* Summary Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
-            {[
-              { label: 'Total Elections', value: elections.length, bg: 'linear-gradient(135deg, #e8f5e9, #c8e6c9)', accent: 'var(--green-700)' },
-              { label: 'Draft', value: draftEls.length, bg: 'linear-gradient(135deg, #fffbeb, #fef3c7)', accent: 'var(--gold-600)' },
-              { label: 'Active Now', value: activeEls.length, bg: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', accent: 'var(--green-600)' },
-              { label: 'Closed', value: closedEls.length, bg: 'linear-gradient(135deg, #f9fafb, #f3f4f6)', accent: 'var(--gray-600)' },
-            ].map(s => (
-              <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: '16px 18px', border: '1px solid rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: s.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--navy-900)' }}>{s.value}</div>
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
+              <div>
+                <h2 style={{ fontWeight: 900, fontSize: 22, color: 'var(--navy-900)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, var(--green-500), var(--green-700))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <ClipboardList size={20} color="#fff" />
+                  </div>
+                  Election Management
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--navy-400)', marginLeft: 50 }}>
+                  Manage {elections.length} election{elections.length !== 1 ? 's' : ''} — create ballots, define positions, and register aspirants.
+                </p>
               </div>
-            ))}
-          </div>
-
-          {/* Status Filter Tabs */}
-          <div style={{ display: 'flex', gap: 4, background: 'var(--gray-100)', borderRadius: 10, padding: 3 }}>
-            {[
-              { key: 'all', label: 'All Elections', count: elections.length },
-              { key: 'draft', label: 'Draft', count: draftEls.length },
-              { key: 'active', label: 'Active', count: activeEls.length },
-              { key: 'closed', label: 'Closed', count: closedEls.length },
-            ].map(f => (
-              <button
-                key={f.key}
-                onClick={() => setElecFilter(f.key)}
-                style={{
-                  flex: 1, padding: '9px 14px', borderRadius: 8, border: 'none',
-                  background: elecFilter === f.key ? 'var(--white)' : 'transparent',
-                  boxShadow: elecFilter === f.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                  fontWeight: elecFilter === f.key ? 700 : 500,
-                  color: elecFilter === f.key ? 'var(--green-700)' : 'var(--gray-500)',
-                  fontSize: 13, cursor: 'pointer', transition: 'all 0.15s',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                }}
-              >
-                {f.label}
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 99, background: elecFilter === f.key ? 'var(--green-50)' : 'var(--gray-200)', color: elecFilter === f.key ? 'var(--green-700)' : 'var(--gray-500)' }}>{f.count}</span>
+              <button className="btn btn-primary" onClick={() => { setWizardStep(1); setShowCreateModal(true); }} style={{ borderRadius: 10, padding: '10px 20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 14px rgba(46,125,50,0.25)' }}>
+                <Plus size={16} /> Create New Election
               </button>
-            ))}
-          </div>
+            </div>
 
-          {/* Election Cards */}
-          {filteredElections.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {filteredElections.map(el => {
-                const elCands = candidates.filter(c => c.electionId === el.id);
-                const totalVotesEl = elCands.reduce((a, c) => a + (c.voteCount || 0), 0);
-                const turnoutPct = el.eligibleVoterCount > 0 ? Math.min(100, Math.round((totalVotesEl / (el.eligibleVoterCount * (el.categories?.length || 1))) * 100)) : 0;
-                const isActive = el.status === 'active';
-                const isDraft = el.status === 'draft';
-                const isClosed = el.status === 'closed';
-                const dept = departments.find(d => d.id === el.departmentId);
+            {/* Summary Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+              {[
+                { label: 'Total Elections', value: elections.length, bg: 'linear-gradient(135deg, #e8f5e9, #c8e6c9)', accent: 'var(--green-700)' },
+                { label: 'Draft', value: draftEls.length, bg: 'linear-gradient(135deg, #fffbeb, #fef3c7)', accent: 'var(--gold-600)' },
+                { label: 'Active Now', value: activeEls.length, bg: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', accent: 'var(--green-600)' },
+                { label: 'Closed', value: closedEls.length, bg: 'linear-gradient(135deg, #f9fafb, #f3f4f6)', accent: 'var(--gray-600)' },
+              ].map(s => (
+                <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: '16px 18px', border: '1px solid rgba(0,0,0,0.04)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: s.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{s.label}</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--navy-900)' }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
 
-                return (
-                  <div key={el.id} style={{ background: 'var(--white)', border: `1.5px solid ${isActive ? 'var(--green-200)' : 'var(--border)'}`, borderRadius: 16, overflow: 'hidden', boxShadow: isActive ? '0 4px 20px rgba(46,125,50,0.06)' : '0 1px 4px rgba(0,0,0,0.03)', transition: 'all 0.2s' }}>
-                    {/* Card Top Accent */}
-                    <div style={{ height: 4, background: isActive ? 'linear-gradient(90deg, var(--green-400), var(--green-600))' : isDraft ? 'linear-gradient(90deg, var(--gold-400), var(--gold-600))' : 'var(--gray-300)' }} />
+            {/* Status Filter Tabs */}
+            <div style={{ display: 'flex', gap: 4, background: 'var(--gray-100)', borderRadius: 10, padding: 3 }}>
+              {[
+                { key: 'all', label: 'All Elections', count: elections.length },
+                { key: 'draft', label: 'Draft', count: draftEls.length },
+                { key: 'active', label: 'Active', count: activeEls.length },
+                { key: 'closed', label: 'Closed', count: closedEls.length },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setElecFilter(f.key)}
+                  style={{
+                    flex: 1, padding: '9px 14px', borderRadius: 8, border: 'none',
+                    background: elecFilter === f.key ? 'var(--white)' : 'transparent',
+                    boxShadow: elecFilter === f.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                    fontWeight: elecFilter === f.key ? 700 : 500,
+                    color: elecFilter === f.key ? 'var(--green-700)' : 'var(--gray-500)',
+                    fontSize: 13, cursor: 'pointer', transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  {f.label}
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 99, background: elecFilter === f.key ? 'var(--green-50)' : 'var(--gray-200)', color: elecFilter === f.key ? 'var(--green-700)' : 'var(--gray-500)' }}>{f.count}</span>
+                </button>
+              ))}
+            </div>
 
-                    {/* Card Header */}
-                    <div style={{ padding: '20px 24px 0' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-                        <div style={{ flex: 1, minWidth: 200 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                            <StatusBadge status={el.status} />
-                            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--navy-300)', fontWeight: 700, letterSpacing: '0.02em' }}>{el.id}</span>
-                            {isActive && <CountdownTimer endTime={el.endTime} />}
+            {/* Election Cards */}
+            {filteredElections.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {filteredElections.map(el => {
+                  const elCands = candidates.filter(c => c.electionId === el.id);
+                  const totalVotesEl = elCands.reduce((a, c) => a + (c.voteCount || 0), 0);
+                  const turnoutPct = el.eligibleVoterCount > 0 ? Math.min(100, Math.round((totalVotesEl / (el.eligibleVoterCount * (el.categories?.length || 1))) * 100)) : 0;
+                  const isActive = el.status === 'active';
+                  const isDraft = el.status === 'draft';
+                  const isClosed = el.status === 'closed';
+                  const dept = departments.find(d => d.id === el.departmentId);
+
+                  return (
+                    <div key={el.id} style={{ background: 'var(--white)', border: `1.5px solid ${isActive ? 'var(--green-200)' : 'var(--border)'}`, borderRadius: 16, overflow: 'hidden', boxShadow: isActive ? '0 4px 20px rgba(46,125,50,0.06)' : '0 1px 4px rgba(0,0,0,0.03)', transition: 'all 0.2s' }}>
+                      {/* Card Top Accent */}
+                      <div style={{ height: 4, background: isActive ? 'linear-gradient(90deg, var(--green-400), var(--green-600))' : isDraft ? 'linear-gradient(90deg, var(--gold-400), var(--gold-600))' : 'var(--gray-300)' }} />
+
+                      {/* Card Header */}
+                      <div style={{ padding: '20px 24px 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                          <div style={{ flex: 1, minWidth: 200 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                              <StatusBadge status={el.status} />
+                              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--navy-300)', fontWeight: 700, letterSpacing: '0.02em' }}>{el.id}</span>
+                              {isActive && <CountdownTimer endTime={el.endTime} />}
+                            </div>
+                            <h3 style={{ fontWeight: 900, fontSize: 17, color: 'var(--navy-900)', marginBottom: 4 }}>{el.title}</h3>
+                            <p style={{ fontSize: 12.5, color: 'var(--navy-500)', lineHeight: 1.55, marginBottom: 0 }}>{el.description || 'No description provided.'}</p>
                           </div>
-                          <h3 style={{ fontWeight: 900, fontSize: 17, color: 'var(--navy-900)', marginBottom: 4 }}>{el.title}</h3>
-                          <p style={{ fontSize: 12.5, color: 'var(--navy-500)', lineHeight: 1.55, marginBottom: 0 }}>{el.description || 'No description provided.'}</p>
+                          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                            {isDraft && <button className="btn btn-primary btn-sm" onClick={() => handlePublish(el.id)} style={{ borderRadius: 8, fontWeight: 700 }}>Publish Poll</button>}
+                            {isActive && <button className="btn btn-sm" onClick={() => handleClose(el.id)} style={{ borderRadius: 8, fontWeight: 700, background: 'var(--red-50)', color: 'var(--red-600)', border: '1.5px solid var(--red-100)' }}>Close Poll</button>}
+                            {isClosed && new Date(el.endTime) > new Date() && <button className="btn btn-primary btn-sm" onClick={() => handlePublish(el.id)} style={{ borderRadius: 8, fontWeight: 700 }}>Publish Poll</button>}
+                            <button className="btn btn-secondary btn-sm" onClick={() => setEditingElection(el)} style={{ borderRadius: 8 }}>Edit</button>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          {isDraft && <button className="btn btn-primary btn-sm" onClick={() => handlePublish(el.id)} style={{ borderRadius: 8, fontWeight: 700 }}>Publish Poll</button>}
-                          {isActive && <button className="btn btn-sm" onClick={() => handleClose(el.id)} style={{ borderRadius: 8, fontWeight: 700, background: 'var(--red-50)', color: 'var(--red-600)', border: '1.5px solid var(--red-100)' }}>Close Poll</button>}
-                          <button className="btn btn-secondary btn-sm" onClick={() => setEditingElection(el)} style={{ borderRadius: 8 }}>Edit</button>
-                        </div>
-                      </div>
 
-                      {/* Info Row */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginTop: 14, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
-                        {[
-                          { icon: '📅', label: 'Starts', value: new Date(el.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) },
-                          { icon: '🏁', label: 'Ends', value: new Date(el.endTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) },
-                          { icon: '🏛️', label: 'Department', value: dept?.name || 'Computing & Data Analytics' },
-                          { icon: '👥', label: 'Eligible Voters', value: el.eligibleVoterCount },
-                          { icon: '📊', label: 'Positions', value: (el.categories || []).length },
-                          { icon: '🎓', label: 'Aspirants', value: elCands.length },
-                        ].map(item => (
-                          <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 14 }}>{item.icon}</span>
-                            <div>
-                              <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy-800)' }}>{item.value}</div>
+                        {/* Info Row */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginTop: 14, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+                          {[
+                            { icon: '📅', label: 'Starts', value: new Date(el.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) },
+                            { icon: '🏁', label: 'Ends', value: new Date(el.endTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) },
+                            { icon: '🏛️', label: 'Department', value: dept?.name || 'Computing & Data Analytics' },
+                            { icon: '👥', label: 'Eligible Voters', value: el.eligibleVoterCount },
+                            { icon: '📊', label: 'Positions', value: (el.categories || []).length },
+                            { icon: '🎓', label: 'Aspirants', value: elCands.length },
+                          ].map(item => (
+                            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 14 }}>{item.icon}</span>
+                              <div>
+                                <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy-800)' }}>{item.value}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Turnout Progress (for active/closed) */}
+                        {(isActive || isClosed) && (
+                          <div style={{ padding: '12px 0' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Voter Turnout</span>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: isActive ? 'var(--green-600)' : 'var(--navy-600)' }}>{turnoutPct}%</span>
+                            </div>
+                            <div className="progress-bar-track" style={{ height: 8, borderRadius: 99 }}>
+                              <div className="progress-bar-fill" style={{ width: `${turnoutPct}%`, background: isActive ? 'linear-gradient(90deg, var(--green-400), var(--green-600))' : 'var(--gray-400)', borderRadius: 99 }} />
                             </div>
                           </div>
-                        ))}
+                        )}
                       </div>
 
-                      {/* Turnout Progress (for active/closed) */}
-                      {(isActive || isClosed) && (
-                        <div style={{ padding: '12px 0' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Voter Turnout</span>
-                            <span style={{ fontSize: 12, fontWeight: 800, color: isActive ? 'var(--green-600)' : 'var(--navy-600)' }}>{turnoutPct}%</span>
-                          </div>
-                          <div className="progress-bar-track" style={{ height: 8, borderRadius: 99 }}>
-                            <div className="progress-bar-fill" style={{ width: `${turnoutPct}%`, background: isActive ? 'linear-gradient(90deg, var(--green-400), var(--green-600))' : 'var(--gray-400)', borderRadius: 99 }} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Positions & Aspirants Section */}
-                    <div style={{ padding: '16px 24px 20px', background: 'var(--gray-50)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                        <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--navy-600)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>Ballot Positions & Aspirants</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <input
-                            type="text"
-                            placeholder="Add new position…"
-                            value={addingCategory[el.id] || ''}
-                            onChange={e => setAddingCategory(p => ({ ...p, [el.id]: e.target.value }))}
-                            className="form-input"
-                            style={{ width: 160, height: 30, padding: '4px 10px', fontSize: 12, borderRadius: 8 }}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault(); e.stopPropagation();
-                                const cat = addingCategory[el.id]?.trim();
-                                if (!cat) return;
-                                if (el.categories?.some(c => c.toLowerCase() === cat.toLowerCase())) {
-                                  addToast({ type: 'warning', title: 'Duplicate', message: `"${cat}" exists.` }); return;
+                      {/* Positions & Aspirants Section */}
+                      <div style={{ padding: '16px 24px 20px', background: 'var(--gray-50)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--navy-600)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>Ballot Positions & Aspirants</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <input
+                              type="text"
+                              placeholder="Add new position…"
+                              value={addingCategory[el.id] || ''}
+                              onChange={e => setAddingCategory(p => ({ ...p, [el.id]: e.target.value }))}
+                              className="form-input"
+                              style={{ width: 160, height: 30, padding: '4px 10px', fontSize: 12, borderRadius: 8 }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault(); e.stopPropagation();
+                                  const cat = addingCategory[el.id]?.trim();
+                                  if (!cat) return;
+                                  if (el.categories?.some(c => c.toLowerCase() === cat.toLowerCase())) {
+                                    addToast({ type: 'warning', title: 'Duplicate', message: `"${cat}" exists.` }); return;
+                                  }
+                                  addElectionCategory(el.id, cat);
+                                  setAddingCategory(p => ({ ...p, [el.id]: '' }));
+                                  addToast({ type: 'success', title: 'Added', message: `"${cat}" position created.` });
                                 }
-                                addElectionCategory(el.id, cat);
-                                setAddingCategory(p => ({ ...p, [el.id]: '' }));
-                                addToast({ type: 'success', title: 'Added', message: `"${cat}" position created.` });
+                              }}
+                            />
+                            <button type="button" className="btn btn-primary btn-sm" style={{ height: 30, borderRadius: 8, fontSize: 12 }} onClick={e => {
+                              e.preventDefault(); e.stopPropagation();
+                              const cat = addingCategory[el.id]?.trim();
+                              if (!cat) return;
+                              if (el.categories?.some(c => c.toLowerCase() === cat.toLowerCase())) {
+                                addToast({ type: 'warning', title: 'Duplicate', message: `"${cat}" exists.` }); return;
                               }
-                            }}
-                          />
-                          <button type="button" className="btn btn-primary btn-sm" style={{ height: 30, borderRadius: 8, fontSize: 12 }} onClick={e => {
-                            e.preventDefault(); e.stopPropagation();
-                            const cat = addingCategory[el.id]?.trim();
-                            if (!cat) return;
-                            if (el.categories?.some(c => c.toLowerCase() === cat.toLowerCase())) {
-                              addToast({ type: 'warning', title: 'Duplicate', message: `"${cat}" exists.` }); return;
-                            }
-                            addElectionCategory(el.id, cat);
-                            setAddingCategory(p => ({ ...p, [el.id]: '' }));
-                            addToast({ type: 'success', title: 'Added', message: `"${cat}" position created.` });
-                          }}>
-                            <Plus size={13} /> Add
-                          </button>
+                              addElectionCategory(el.id, cat);
+                              setAddingCategory(p => ({ ...p, [el.id]: '' }));
+                              addToast({ type: 'success', title: 'Added', message: `"${cat}" position created.` });
+                            }}>
+                              <Plus size={13} /> Add
+                            </button>
+                          </div>
                         </div>
-                      </div>
 
-                      {(el.categories || []).length > 0 ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
-                          {el.categories.map(cat => {
-                            const catCands = candidates.filter(c => c.electionId === el.id && c.position === cat);
-                            return (
-                              <div key={cat} style={{ background: 'var(--white)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                                <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--white)' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg, var(--green-500), var(--green-700))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 900 }}>{cat[0]}</div>
-                                    <div>
-                                      <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--navy-900)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>{cat}</div>
-                                      <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>{catCands.length} aspirant{catCands.length !== 1 ? 's' : ''}</div>
-                                    </div>
-                                  </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <button className="btn btn-sm" style={{ height: 24, padding: '0 8px', fontSize: 10, borderRadius: 6, border: '1px solid var(--green-200)', background: 'var(--green-50)', color: 'var(--green-700)' }} onClick={() => { setNewCand({ electionId: el.id, name: '', position: cat, color: '#2e7d32', picture: '', department: '' }); setShowCandModal(true); }}>
-                                      <Plus size={10} /> Add
-                                    </button>
-                                    <button title="Delete" onClick={() => { if (window.confirm(`Delete "${cat}" position and all its candidates?`)) { deleteElectionCategory(el.id, cat); addToast({ type: 'success', message: `"${cat}" removed.` }); } }} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid var(--red-100)', background: 'var(--red-50)', color: 'var(--red-500)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </div>
-                                </div>
-                                <div style={{ padding: catCands.length ? '8px 10px' : '12px 10px' }}>
-                                  {catCands.map(c => (
-                                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: 8, marginBottom: 4, transition: 'background 0.12s' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--gray-50)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        {c.picture ? (
-                                          <img src={c.picture} alt={c.name} style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'cover', border: '1.5px solid var(--green-100)' }} />
-                                        ) : (
-                                          <div style={{ width: 28, height: 28, borderRadius: 7, background: c.color || 'var(--green-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 800 }}>{c.name.split(' ').map(n => n[0]).join('')}</div>
-                                        )}
-                                        <div>
-                                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy-900)' }}>{c.name}</div>
-                                          <div style={{ fontSize: 9.5, color: 'var(--gray-400)' }}>{c.department || 'Computing & Data Analytics'}</div>
-                                        </div>
+                        {(el.categories || []).length > 0 ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+                            {el.categories.map(cat => {
+                              const catCands = candidates.filter(c => c.electionId === el.id && c.position === cat);
+                              return (
+                                <div key={cat} style={{ background: 'var(--white)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                  <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--white)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg, var(--green-500), var(--green-700))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 900 }}>{cat[0]}</div>
+                                      <div>
+                                        <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--navy-900)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>{cat}</div>
+                                        <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>{catCands.length} aspirant{catCands.length !== 1 ? 's' : ''}</div>
                                       </div>
-                                      <button title="Remove" onClick={() => { if (window.confirm(`Remove "${c.name}"?`)) { deleteCandidate(c.id); addToast({ type: 'success', message: `${c.name} removed.` }); } }} style={{ opacity: 0.4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--red-500)', padding: 2 }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0.4}>
-                                        <Trash2 size={12} />
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <button className="btn btn-sm" style={{ height: 24, padding: '0 8px', fontSize: 10, borderRadius: 6, border: '1px solid var(--green-200)', background: 'var(--green-50)', color: 'var(--green-700)' }} onClick={() => { setNewCand({ electionId: el.id, name: '', position: cat, color: '#2e7d32', picture: '', department: '' }); setShowCandModal(true); }}>
+                                        <Plus size={10} /> Add
+                                      </button>
+                                      <button title="Delete" onClick={() => { if (window.confirm(`Delete "${cat}" position and all its candidates?`)) { deleteElectionCategory(el.id, cat); addToast({ type: 'success', message: `"${cat}" removed.` }); } }} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid var(--red-100)', background: 'var(--red-50)', color: 'var(--red-500)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>
+                                        <Trash2 size={11} />
                                       </button>
                                     </div>
-                                  ))}
-                                  {!catCands.length && <div style={{ fontSize: 11, color: 'var(--gray-400)', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>No aspirants yet</div>}
+                                  </div>
+                                  <div style={{ padding: catCands.length ? '8px 10px' : '12px 10px' }}>
+                                    {catCands.map(c => (
+                                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: 8, marginBottom: 4, transition: 'background 0.12s' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--gray-50)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                          {c.picture ? (
+                                            <img src={c.picture} alt={c.name} style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'cover', border: '1.5px solid var(--green-100)' }} />
+                                          ) : (
+                                            <div style={{ width: 28, height: 28, borderRadius: 7, background: c.color || 'var(--green-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 800 }}>{c.name.split(' ').map(n => n[0]).join('')}</div>
+                                          )}
+                                          <div>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy-900)' }}>{c.name}</div>
+                                            <div style={{ fontSize: 9.5, color: 'var(--gray-400)' }}>{c.department || 'Computing & Data Analytics'}</div>
+                                          </div>
+                                        </div>
+                                        <button title="Remove" onClick={() => { if (window.confirm(`Remove "${c.name}"?`)) { deleteCandidate(c.id); addToast({ type: 'success', message: `${c.name} removed.` }); } }} style={{ opacity: 0.4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--red-500)', padding: 2 }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0.4}>
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                    ))}
+                                    {!catCands.length && <div style={{ fontSize: 11, color: 'var(--gray-400)', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>No aspirants yet</div>}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div style={{ textAlign: 'center', padding: '20px 12px', border: '1.5px dashed var(--border)', borderRadius: 12, color: 'var(--gray-400)', fontSize: 12 }}>
-                          No positions defined yet. Add positions above to start building the ballot structure.
-                        </div>
-                      )}
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div style={{ textAlign: 'center', padding: '20px 12px', border: '1.5px dashed var(--border)', borderRadius: 12, color: 'var(--gray-400)', fontSize: 12 }}>
+                            No positions defined yet. Add positions above to start building the ballot structure.
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '64px 24px', background: 'var(--white)', borderRadius: 16, border: '1.5px dashed var(--border)' }}>
-              <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--green-50)', border: '1px solid var(--green-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <ClipboardList size={28} style={{ color: 'var(--green-300)' }} />
+                  );
+                })}
               </div>
-              <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--navy-700)', marginBottom: 6 }}>
-                {elecFilter !== 'all' ? `No ${elecFilter} elections found` : 'No Elections Created Yet'}
-              </h3>
-              <p style={{ fontSize: 13, color: 'var(--navy-400)', maxWidth: 360, margin: '0 auto 20px', lineHeight: 1.6 }}>
-                {elecFilter !== 'all' ? 'Try selecting a different status filter.' : 'Create your first election to define positions and register candidates for the ballot.'}
-              </p>
-              {elecFilter === 'all' && (
-                <button className="btn btn-primary btn-sm" onClick={() => { setWizardStep(1); setShowCreateModal(true); }} style={{ borderRadius: 8 }}>
-                  <Plus size={14} /> Create First Election
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '64px 24px', background: 'var(--white)', borderRadius: 16, border: '1.5px dashed var(--border)' }}>
+                <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--green-50)', border: '1px solid var(--green-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <ClipboardList size={28} style={{ color: 'var(--green-300)' }} />
+                </div>
+                <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--navy-700)', marginBottom: 6 }}>
+                  {elecFilter !== 'all' ? `No ${elecFilter} elections found` : 'No Elections Created Yet'}
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--navy-400)', maxWidth: 360, margin: '0 auto 20px', lineHeight: 1.6 }}>
+                  {elecFilter !== 'all' ? 'Try selecting a different status filter.' : 'Create your first election to define positions and register candidates for the ballot.'}
+                </p>
+                {elecFilter === 'all' && (
+                  <button className="btn btn-primary btn-sm" onClick={() => { setWizardStep(1); setShowCreateModal(true); }} style={{ borderRadius: 8 }}>
+                    <Plus size={14} /> Create First Election
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         );
       })()}
 
       {/* ── CANDIDATES ── */}
       {tab === 'candidates' && (() => {
         const allPositions = Array.from(new Set(candidates.map(c => c.position).filter(Boolean)));
-        
+
         const filteredCands = candidates.filter(c => {
-          const matchesSearch = !candSearch || 
+          const matchesSearch = !candSearch ||
             c.name.toLowerCase().includes(candSearch.toLowerCase()) ||
             c.department?.toLowerCase().includes(candSearch.toLowerCase());
           const matchesElection = candElFilter === 'all' || c.electionId === candElFilter;
@@ -793,155 +886,155 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
         });
 
         return (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
-            <div>
-              <h2 style={{ fontWeight: 900, fontSize: 22, color: 'var(--navy-900)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, var(--green-500), var(--green-700))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Users size={20} color="#fff" />
-                </div>
-                Candidate Registry
-              </h2>
-              <p style={{ fontSize: 13, color: 'var(--navy-400)', marginLeft: 50 }}>
-                {candidates.length} candidate{candidates.length !== 1 ? 's' : ''} registered across {elections.length} election{elections.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <button className="btn btn-primary" onClick={() => setShowCandModal(true)} style={{ borderRadius: 10, padding: '10px 20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 14px rgba(46,125,50,0.25)' }}>
-              <Plus size={16} /> Register New Candidate
-            </button>
-          </div>
-
-          {/* Stats Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-            {[
-              { label: 'Total Candidates', value: candidates.length, gradient: 'linear-gradient(135deg, #e8f5e9, #c8e6c9)', iconBg: 'var(--green-500)' },
-              { label: 'Positions', value: allPositions.length, gradient: 'linear-gradient(135deg, #fffbeb, #fef3c7)', iconBg: 'var(--gold-500)' },
-              { label: 'Active Elections', value: elections.filter(e => e.status === 'active').length, gradient: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', iconBg: 'var(--green-600)' },
-              { label: 'Draft Elections', value: elections.filter(e => e.status === 'draft').length, gradient: 'linear-gradient(135deg, #f9fafb, #f3f4f6)', iconBg: 'var(--gray-500)' },
-            ].map(s => (
-              <div key={s.label} style={{ background: s.gradient, borderRadius: 14, padding: '16px 18px', border: '1px solid rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--navy-900)' }}>{s.value}</div>
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
+              <div>
+                <h2 style={{ fontWeight: 900, fontSize: 22, color: 'var(--navy-900)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, var(--green-500), var(--green-700))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Users size={20} color="#fff" />
+                  </div>
+                  Candidate Registry
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--navy-400)', marginLeft: 50 }}>
+                  {candidates.length} candidate{candidates.length !== 1 ? 's' : ''} registered across {elections.length} election{elections.length !== 1 ? 's' : ''}
+                </p>
               </div>
-            ))}
-          </div>
-
-          {/* Filter Bar */}
-          <div className="cand-filter-bar">
-            <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-              <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)' }} width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input type="text" value={candSearch} onChange={e => setCandSearch(e.target.value)} placeholder="Search candidates by name or department..." className="form-input" style={{ paddingLeft: 33, border: 'none', background: 'transparent', boxShadow: 'none' }} />
+              <button className="btn btn-primary" onClick={() => setShowCandModal(true)} style={{ borderRadius: 10, padding: '10px 20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 14px rgba(46,125,50,0.25)' }}>
+                <Plus size={16} /> Register New Candidate
+              </button>
             </div>
-            <div style={{ height: 24, width: 1, background: 'var(--border)' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy-400)', whiteSpace: 'nowrap' }}>ELECTION:</span>
-            <button className={`filter-chip ${candElFilter === 'all' ? 'active' : ''}`} onClick={() => setCandElFilter('all')}>All</button>
-            {elections.slice(0, 4).map(e => (
-              <button key={e.id} className={`filter-chip ${candElFilter === e.id ? 'active' : ''}`} onClick={() => setCandElFilter(e.id)}>
-                {e.title.length > 20 ? e.title.slice(0, 20) + '…' : e.title}
-              </button>
-            ))}
-          </div>
 
-          {/* Position Filter Pills */}
-          {allPositions.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Position:</span>
-              <button onClick={() => setCandPosFilter('all')} style={{ padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 600, border: `1.5px solid ${candPosFilter === 'all' ? 'var(--green-500)' : 'var(--border)'}`, background: candPosFilter === 'all' ? 'var(--green-500)' : 'var(--white)', color: candPosFilter === 'all' ? '#fff' : 'var(--gray-600)', cursor: 'pointer', transition: 'all 0.15s' }}>
-                All Positions
-              </button>
-              {allPositions.map(pos => (
-                <button key={pos} onClick={() => setCandPosFilter(pos)} style={{ padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 600, border: `1.5px solid ${candPosFilter === pos ? 'var(--green-500)' : 'var(--border)'}`, background: candPosFilter === pos ? 'var(--green-500)' : 'var(--white)', color: candPosFilter === pos ? '#fff' : 'var(--gray-600)', cursor: 'pointer', transition: 'all 0.15s' }}>
-                  {pos}
+            {/* Stats Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+              {[
+                { label: 'Total Candidates', value: candidates.length, gradient: 'linear-gradient(135deg, #e8f5e9, #c8e6c9)', iconBg: 'var(--green-500)' },
+                { label: 'Positions', value: allPositions.length, gradient: 'linear-gradient(135deg, #fffbeb, #fef3c7)', iconBg: 'var(--gold-500)' },
+                { label: 'Active Elections', value: elections.filter(e => e.status === 'active').length, gradient: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', iconBg: 'var(--green-600)' },
+                { label: 'Draft Elections', value: elections.filter(e => e.status === 'draft').length, gradient: 'linear-gradient(135deg, #f9fafb, #f3f4f6)', iconBg: 'var(--gray-500)' },
+              ].map(s => (
+                <div key={s.label} style={{ background: s.gradient, borderRadius: 14, padding: '16px 18px', border: '1px solid rgba(0,0,0,0.04)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{s.label}</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--navy-900)' }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Filter Bar */}
+            <div className="cand-filter-bar">
+              <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+                <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)' }} width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input type="text" value={candSearch} onChange={e => setCandSearch(e.target.value)} placeholder="Search candidates by name or department..." className="form-input" style={{ paddingLeft: 33, border: 'none', background: 'transparent', boxShadow: 'none' }} />
+              </div>
+              <div style={{ height: 24, width: 1, background: 'var(--border)' }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy-400)', whiteSpace: 'nowrap' }}>ELECTION:</span>
+              <button className={`filter-chip ${candElFilter === 'all' ? 'active' : ''}`} onClick={() => setCandElFilter('all')}>All</button>
+              {elections.slice(0, 4).map(e => (
+                <button key={e.id} className={`filter-chip ${candElFilter === e.id ? 'active' : ''}`} onClick={() => setCandElFilter(e.id)}>
+                  {e.title.length > 20 ? e.title.slice(0, 20) + '…' : e.title}
                 </button>
               ))}
             </div>
-          )}
 
-          {/* Position Board */}
-          {Object.keys(positionGroups).length > 0 ? (
-            <div className="position-board">
-              {Object.entries(positionGroups).map(([pos, cands], idx) => (
-                <div key={pos} className="position-lane">
-                  <div className="position-lane-header">
-                    <div className="position-lane-title">
-                      <div className="position-icon">{pos[0]}</div>
-                      <div>
-                        <h4 style={{ margin: 0 }}>{pos}</h4>
-                        <span style={{ fontSize: 11, color: 'var(--gray-400)', fontWeight: 500 }}>
-                          {cands.length} candidate{cands.length !== 1 ? 's' : ''} registered
-                        </span>
-                      </div>
-                      <span className="count-badge">{cands.length}</span>
-                    </div>
-                    <button className="btn btn-sm btn-secondary" onClick={() => { setNewCand(p => ({ ...p, position: pos })); setShowCandModal(true); }} style={{ borderRadius: 8, display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 700 }}>
-                      <Plus size={13} /> Add to this position
-                    </button>
-                  </div>
-                  <div className="position-lane-body">
-                    {cands.map(c => {
-                      const el = elections.find(e => e.id === c.electionId);
-                      return (
-                        <div key={c.id} className="cand-roster-card">
-                          {c.picture ? (
-                            <img src={c.picture} alt={c.name} className="cand-avatar" />
-                          ) : (
-                            <div className="cand-avatar-fallback" style={{ background: c.color || 'var(--green-600)' }}>
-                              {c.name.split(' ').map(n => n[0]).join('')}
-                            </div>
-                          )}
-                          <div className="cand-info">
-                            <div className="cand-name">{c.name}</div>
-                            <div className="cand-meta">{c.department || 'No department'}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                              <span className="cand-position-tag">{c.position}</span>
-                              {el && <span style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 500 }}>{el.title}</span>}
-                            </div>
-                          </div>
-                          <div className="cand-actions">
-                            <button
-                              title="Delete Candidate"
-                              onClick={() => {
-                                if (window.confirm(`Remove "${c.name}" from the ballot?`)) {
-                                  deleteCandidate(c.id);
-                                  addToast({ type: 'success', title: 'Candidate Removed', message: `${c.name} has been removed from the ballot.` });
-                                }
-                              }}
-                              style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid var(--red-100)', background: 'var(--red-50)', color: 'var(--red-500)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
-                              onMouseEnter={e => { e.currentTarget.style.background = 'var(--red-500)'; e.currentTarget.style.color = '#fff'; }}
-                              onMouseLeave={e => { e.currentTarget.style.background = 'var(--red-50)'; e.currentTarget.style.color = 'var(--red-500)'; }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
+            {/* Position Filter Pills */}
+            {allPositions.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Position:</span>
+                <button onClick={() => setCandPosFilter('all')} style={{ padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 600, border: `1.5px solid ${candPosFilter === 'all' ? 'var(--green-500)' : 'var(--border)'}`, background: candPosFilter === 'all' ? 'var(--green-500)' : 'var(--white)', color: candPosFilter === 'all' ? '#fff' : 'var(--gray-600)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                  All Positions
+                </button>
+                {allPositions.map(pos => (
+                  <button key={pos} onClick={() => setCandPosFilter(pos)} style={{ padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 600, border: `1.5px solid ${candPosFilter === pos ? 'var(--green-500)' : 'var(--border)'}`, background: candPosFilter === pos ? 'var(--green-500)' : 'var(--white)', color: candPosFilter === pos ? '#fff' : 'var(--gray-600)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                    {pos}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Position Board */}
+            {Object.keys(positionGroups).length > 0 ? (
+              <div className="position-board">
+                {Object.entries(positionGroups).map(([pos, cands], idx) => (
+                  <div key={pos} className="position-lane">
+                    <div className="position-lane-header">
+                      <div className="position-lane-title">
+                        <div className="position-icon">{pos[0]}</div>
+                        <div>
+                          <h4 style={{ margin: 0 }}>{pos}</h4>
+                          <span style={{ fontSize: 11, color: 'var(--gray-400)', fontWeight: 500 }}>
+                            {cands.length} candidate{cands.length !== 1 ? 's' : ''} registered
+                          </span>
                         </div>
-                      );
-                    })}
+                        <span className="count-badge">{cands.length}</span>
+                      </div>
+                      <button className="btn btn-sm btn-secondary" onClick={() => { setNewCand(p => ({ ...p, position: pos })); setShowCandModal(true); }} style={{ borderRadius: 8, display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 700 }}>
+                        <Plus size={13} /> Add to this position
+                      </button>
+                    </div>
+                    <div className="position-lane-body">
+                      {cands.map(c => {
+                        const el = elections.find(e => e.id === c.electionId);
+                        return (
+                          <div key={c.id} className="cand-roster-card">
+                            {c.picture ? (
+                              <img src={c.picture} alt={c.name} className="cand-avatar" />
+                            ) : (
+                              <div className="cand-avatar-fallback" style={{ background: c.color || 'var(--green-600)' }}>
+                                {c.name.split(' ').map(n => n[0]).join('')}
+                              </div>
+                            )}
+                            <div className="cand-info">
+                              <div className="cand-name">{c.name}</div>
+                              <div className="cand-meta">{c.department || 'No department'}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                <span className="cand-position-tag">{c.position}</span>
+                                {el && <span style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 500 }}>{el.title}</span>}
+                              </div>
+                            </div>
+                            <div className="cand-actions">
+                              <button
+                                title="Delete Candidate"
+                                onClick={() => {
+                                  if (window.confirm(`Remove "${c.name}" from the ballot?`)) {
+                                    deleteCandidate(c.id);
+                                    addToast({ type: 'success', title: 'Candidate Removed', message: `${c.name} has been removed from the ballot.` });
+                                  }
+                                }}
+                                style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid var(--red-100)', background: 'var(--red-50)', color: 'var(--red-500)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--red-500)'; e.currentTarget.style.color = '#fff'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'var(--red-50)'; e.currentTarget.style.color = 'var(--red-500)'; }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '64px 24px', background: 'var(--white)', borderRadius: 16, border: '1.5px dashed var(--border)' }}>
-              <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--green-50)', border: '1px solid var(--green-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <Users size={28} style={{ color: 'var(--green-300)' }} />
+                ))}
               </div>
-              <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--navy-700)', marginBottom: 6 }}>
-                {candSearch || candElFilter !== 'all' || candPosFilter !== 'all' ? 'No candidates match your filters' : 'No Candidates Registered Yet'}
-              </h3>
-              <p style={{ fontSize: 13, color: 'var(--navy-400)', maxWidth: 340, margin: '0 auto 20px', lineHeight: 1.6 }}>
-                {candSearch || candElFilter !== 'all' || candPosFilter !== 'all' ? 'Try adjusting your search or filter criteria.' : 'Start by creating an election, then register candidates with their photos and positions.'}
-              </p>
-              {!candSearch && candElFilter === 'all' && (
-                <button className="btn btn-primary btn-sm" onClick={() => setShowCandModal(true)} style={{ borderRadius: 8 }}>
-                  <Plus size={14} /> Register First Candidate
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '64px 24px', background: 'var(--white)', borderRadius: 16, border: '1.5px dashed var(--border)' }}>
+                <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--green-50)', border: '1px solid var(--green-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <Users size={28} style={{ color: 'var(--green-300)' }} />
+                </div>
+                <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--navy-700)', marginBottom: 6 }}>
+                  {candSearch || candElFilter !== 'all' || candPosFilter !== 'all' ? 'No candidates match your filters' : 'No Candidates Registered Yet'}
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--navy-400)', maxWidth: 340, margin: '0 auto 20px', lineHeight: 1.6 }}>
+                  {candSearch || candElFilter !== 'all' || candPosFilter !== 'all' ? 'Try adjusting your search or filter criteria.' : 'Start by creating an election, then register candidates with their photos and positions.'}
+                </p>
+                {!candSearch && candElFilter === 'all' && (
+                  <button className="btn btn-primary btn-sm" onClick={() => setShowCandModal(true)} style={{ borderRadius: 8 }}>
+                    <Plus size={14} /> Register First Candidate
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         );
       })()}
 
@@ -957,9 +1050,9 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {voterUsers.length > 0 && (
-                <button 
-                  className="btn btn-secondary btn-sm" 
-                  onClick={() => handleClearRegistry(filterYear)} 
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleClearRegistry(filterYear)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--red-600)', border: '1.5px solid var(--red-100)', background: 'var(--red-50)' }}
                 >
                   <Trash2 size={14} />
@@ -1040,7 +1133,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
           {/* Voter Filter Bar */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--navy-100)', paddingTop: 20 }}>
             <input type="text" placeholder="Search name, ID, email..." value={searchVoter} onChange={e => setSearchVoter(e.target.value)} className="form-input" style={{ flex: '1 1 200px', minWidth: 180, maxWidth: 300 }} />
-            
+
             <select value={filterDept} onChange={e => setFilterDept(e.target.value)} className="form-input" style={{ width: 'auto', minWidth: 160, color: 'var(--navy-800)', border: '1.5px solid var(--navy-100)' }}>
               <option value="all">All Departments</option>
               {departments.map(d => (
@@ -1062,9 +1155,9 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             </select>
 
             {(filterDept !== 'all' || filterYear !== 'all' || filterStatus !== 'all' || searchVoter) && (
-              <button 
+              <button
                 onClick={() => { setFilterDept('all'); setFilterYear('all'); setFilterStatus('all'); setSearchVoter(''); }}
-                className="btn btn-secondary btn-sm" 
+                className="btn btn-secondary btn-sm"
                 style={{ color: 'var(--navy-500)', border: '1px solid var(--navy-200)', background: 'var(--navy-50)', padding: '8px 12px' }}
               >
                 Reset
@@ -1112,17 +1205,33 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                         <td style={{ fontSize: 12 }}>{u.year || 'N/A'}</td>
                         <td style={{ fontSize: 12 }}>{dept ? `${dept.name} (${dept.code})` : 'Department of Computing and Data Analytics'}</td>
                         <td>
-                          <span 
-                            className={`badge-${u.status === 'active' ? 'active' : 'closed'}`} 
-                            style={{ cursor: 'pointer' }} 
+                          <span
+                            className={`badge-${u.status === 'active' ? 'active' : 'closed'}`}
+                            style={{ cursor: 'pointer' }}
                             onClick={() => updateUser({ id: u.id, status: u.status === 'active' ? 'suspended' : 'active' })}
                           >
                             ● {u.status || 'Active'}
                           </span>
                         </td>
                         <td>
-                          <button 
-                            onClick={() => { if(confirm(`Delete voter ${u.name}?`)) deleteUser(u.id); }} 
+                          <button
+                            onClick={async () => {
+                              try {
+                                setEditingUser({ ...u, loading: true });
+                                const fullUser = await api.getUser(u.id);
+                                setEditingUser({ ...fullUser, loading: false });
+                              } catch (err) {
+                                console.error(err);
+                                addToast({ type: 'error', title: 'Load Failed', message: 'Failed to access voter profile (audit logged).' });
+                                setEditingUser(null);
+                              }
+                            }}
+                            style={{ background: 'none', border: 'none', color: 'var(--green-700)', marginRight: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => { if (confirm(`Delete voter ${u.name}?`)) deleteUser(u.id); }}
                             style={{ background: 'none', border: 'none', color: 'var(--red-600)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                           >
                             Delete
@@ -1177,7 +1286,23 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                       </span>
                     </td>
                     <td>
-                      <button onClick={() => { if(confirm('Delete user?')) deleteUser(u.id); }} style={{ background: 'none', border: 'none', color: 'var(--red-600)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Delete</button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            setEditingUser({ ...u, loading: true });
+                            const fullUser = await api.getUser(u.id);
+                            setEditingUser({ ...fullUser, loading: false });
+                          } catch (err) {
+                            console.error(err);
+                            addToast({ type: 'error', title: 'Load Failed', message: 'Failed to access user details (audit logged).' });
+                            setEditingUser(null);
+                          }
+                        }}
+                        style={{ background: 'none', border: 'none', color: 'var(--green-700)', marginRight: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Edit
+                      </button>
+                      <button onClick={() => { if (confirm('Delete user?')) deleteUser(u.id); }} style={{ background: 'none', border: 'none', color: 'var(--red-600)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -1312,7 +1437,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
                   <div><StatusBadge status={el.status} /><h4 style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy-900)', marginTop: 6 }}>{el.title}</h4></div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    {['PDF','CSV'].map(fmt => (
+                    {['PDF', 'CSV'].map(fmt => (
                       <button key={fmt} className="btn btn-secondary btn-sm" onClick={() => addToast({ type: 'success', message: `Exporting as ${fmt}…` })}><FileDown size={13} />{fmt}</button>
                     ))}
                   </div>
@@ -1373,11 +1498,11 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
       )}
 
       {/* Create Election Modal (WIZARD FLOW) */}
-      <ConfirmModal 
-        isOpen={showCreateModal} 
-        onClose={() => setShowCreateModal(false)} 
-        onConfirm={handleWizardNext} 
-        title="Setup New Election Campaign" 
+      <ConfirmModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onConfirm={handleWizardNext}
+        title="Setup New Election Campaign"
         confirmText={wizardStep === 4 ? "Finalize Campaign" : "Next Step"}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 8 }}>
@@ -1421,10 +1546,10 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {inp('Election Title *', newElec.title, v => setNewElec(p => ({ ...p, title: v })), { placeholder: 'e.g. CSR Executive Election 2026', required: true })}
-                
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   {inp('Assigned Department', newElec.departmentId, v => setNewElec(p => ({ ...p, departmentId: v })), { select: <><option value="">Master Registry (All Departments)</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</> })}
-                  {inp('Poll / Campaign Type', newElec.type, v => setNewElec(p => ({ ...p, type: v })), { select: ['Student Representative','Departmental Committee','Faculty Officer','Referendum'].map(t => <option key={t} value={t}>{t}</option>) })}
+                  {inp('Poll / Campaign Type', newElec.type, v => setNewElec(p => ({ ...p, type: v })), { select: ['Student Representative', 'Departmental Committee', 'Faculty Officer', 'Referendum'].map(t => <option key={t} value={t}>{t}</option>) })}
                 </div>
 
                 {inp('Purpose / Description', newElec.description, v => setNewElec(p => ({ ...p, description: v })), { textarea: true, placeholder: 'Detail the agenda, rules, and scope of this election campaign…' })}
@@ -1448,11 +1573,11 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                     <div style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--navy-300)', display: 'flex', alignItems: 'center' }}>
                       <Layers size={13} />
                     </div>
-                    <input 
-                      type="text" 
-                      id="wiz-new-cat" 
-                      placeholder="e.g. SRC President, Organising Secretary..." 
-                      className="form-input" 
+                    <input
+                      type="text"
+                      id="wiz-new-cat"
+                      placeholder="e.g. SRC President, Organising Secretary..."
+                      className="form-input"
                       style={{ height: 38, borderRadius: 8, paddingLeft: 30, fontSize: 12 }}
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
@@ -1466,9 +1591,9 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                       }}
                     />
                   </div>
-                  <button 
-                    type="button" 
-                    className="btn btn-primary" 
+                  <button
+                    type="button"
+                    className="btn btn-primary"
                     style={{ height: 38, borderRadius: 8, padding: '0 16px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
                     onClick={() => {
                       const inpEl = document.getElementById('wiz-new-cat');
@@ -1489,29 +1614,29 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                 {(newElec.categories || []).map((c, i) => {
                   const idxStr = String(i + 1).padStart(2, '0');
                   return (
-                    <div 
-                      key={c} 
-                      style={{ 
-                        background: 'var(--white)', 
-                        border: '1px solid var(--border)', 
-                        borderRadius: 10, 
-                        padding: '10px 14px', 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
+                    <div
+                      key={c}
+                      style={{
+                        background: 'var(--white)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 10,
+                        padding: '10px 14px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
                         alignItems: 'center',
                         boxShadow: '0 1px 2px rgba(0,0,0,0.01)',
                         transition: 'all 0.15s'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ 
-                          fontSize: 9.5, 
-                          fontWeight: 800, 
-                          background: 'var(--green-50)', 
-                          color: 'var(--green-800)', 
+                        <span style={{
+                          fontSize: 9.5,
+                          fontWeight: 800,
+                          background: 'var(--green-50)',
+                          color: 'var(--green-800)',
                           border: '1px solid var(--green-200)',
-                          width: 22, 
-                          height: 22, 
+                          width: 22,
+                          height: 22,
                           borderRadius: '50%',
                           display: 'flex',
                           alignItems: 'center',
@@ -1524,22 +1649,22 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                           <span style={{ fontSize: 10, color: 'var(--navy-300)' }}>Aspirants can be added to this ballot role after creation.</span>
                         </div>
                       </div>
-                      <button 
-                        type="button" 
-                        onClick={() => setNewElec(p => ({ ...p, categories: p.categories.filter(cat => cat !== c) }))} 
-                        style={{ 
-                          border: 'none', 
-                          background: 'var(--red-50)', 
-                          color: 'var(--red-600)', 
-                          fontSize: 12, 
-                          cursor: 'pointer', 
+                      <button
+                        type="button"
+                        onClick={() => setNewElec(p => ({ ...p, categories: p.categories.filter(cat => cat !== c) }))}
+                        style={{
+                          border: 'none',
+                          background: 'var(--red-50)',
+                          color: 'var(--red-600)',
+                          fontSize: 12,
+                          cursor: 'pointer',
                           borderRadius: 6,
                           width: 22,
                           height: 22,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontWeight: 700 
+                          fontWeight: 700
                         }}
                         title="Remove ballot position"
                       >
@@ -1550,12 +1675,12 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                 })}
 
                 {!(newElec.categories || []).length && (
-                  <div style={{ 
-                    textAlign: 'center', 
-                    padding: '20px 12px', 
-                    background: 'var(--gray-50)', 
-                    border: '1.5px dashed var(--border)', 
-                    borderRadius: 12, 
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '20px 12px',
+                    background: 'var(--gray-50)',
+                    border: '1.5px dashed var(--border)',
+                    borderRadius: 12,
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -1593,7 +1718,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, background: 'var(--white)', border: '1px solid var(--border)', padding: 20, borderRadius: 12 }}>
                 {inp('Start Date & Time *', newElec.startTime, v => setNewElec(p => ({ ...p, startTime: v })), { type: 'datetime-local', required: true })}
-                {inp('End Date & Time *', newElec.endTime,   v => setNewElec(p => ({ ...p, endTime: v })),   { type: 'datetime-local', required: true })}
+                {inp('End Date & Time *', newElec.endTime, v => setNewElec(p => ({ ...p, endTime: v })), { type: 'datetime-local', required: true })}
               </div>
 
               <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-200)', padding: '16px 20px', borderRadius: 12, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -1635,7 +1760,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                 Enter the official credentials & details of the candidate for ballot placement.
               </p>
             </div>
-            
+
             <div className="cand-drawer-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {/* Photo & Color Selection Header Block */}
               <div style={{ display: 'flex', gap: 20, alignItems: 'center', background: 'var(--navy-50)', padding: '16px 20px', borderRadius: 14, border: '1px solid var(--border)' }}>
@@ -1651,7 +1776,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                   )}
                   <input type="file" accept="image/*" onChange={handlePictureChange} style={{ display: 'none' }} />
                 </label>
-                
+
                 <div style={{ flex: 1 }}>
                   <label className="form-label" style={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ballot Branding color</label>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 6 }}>
@@ -1665,8 +1790,8 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
               {/* Form Fields */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {inp('Election Registry *', newCand.electionId, v => setNewCand(p => ({ ...p, electionId: v })), { select: <><option value="">-- Choose target election --</option>{elections.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}</> })}
-                
-                {inp('Full Candidate Name *',  newCand.name,     v => setNewCand(p => ({ ...p, name: v })),     { placeholder: 'e.g. Samuel Osei Tutu', required: true })}
+
+                {inp('Full Candidate Name *', newCand.name, v => setNewCand(p => ({ ...p, name: v })), { placeholder: 'e.g. Samuel Osei Tutu', required: true })}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   {elections.find(e => e.id === newCand.electionId)?.categories?.length ? (
@@ -1681,7 +1806,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                   ) : (
                     inp('Position *', newCand.position, v => setNewCand(p => ({ ...p, position: v })), { placeholder: 'e.g. SRC President', required: true })
                   )}
-                  
+
                   {inp('Department Affiliation', newCand.department || '', v => setNewCand(p => ({ ...p, department: v })), {
                     select: (
                       <>
@@ -1720,6 +1845,41 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
         </div>
       </ConfirmModal>
 
+      {/* Edit User Modal */}
+      <ConfirmModal
+        isOpen={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        onConfirm={handleUpdateUser}
+        title="Edit User Details"
+        confirmText={editingUser?.loading ? "Loading..." : "Save Changes"}
+        disabled={editingUser?.loading}
+      >
+        {editingUser && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+            {editingUser.loading ? (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--navy-500)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <span className="animate-spin" style={{ display: 'inline-block', width: 24, height: 24, border: '3px solid rgba(46,125,50,0.2)', borderTopColor: 'var(--green-600)', borderRadius: '50%' }}></span>
+                Retrieving unmasked user records (audit logged)...
+              </div>
+            ) : (
+              <>
+                {inp('Full Name *', editingUser.name, v => setEditingUser(p => ({ ...p, name: v })))}
+                {inp('Student/Staff ID *', editingUser.studentId, v => setEditingUser(p => ({ ...p, studentId: v })), { required: true })}
+                {inp('Email Address *', editingUser.email, v => setEditingUser(p => ({ ...p, email: v })))}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {inp('Phone Number', editingUser.phoneNumber || '', v => setEditingUser(p => ({ ...p, phoneNumber: v })), { placeholder: 'e.g. 0244000000' })}
+                  {inp('Academic Year / Level', editingUser.year || '', v => setEditingUser(p => ({ ...p, year: v })), { placeholder: 'e.g. YEAR 1' })}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {inp('System Role', editingUser.role, v => setEditingUser(p => ({ ...p, role: v })), { select: <><option value="voter">Student Voter</option><option value="admin">Administrator</option><option value="auditor">Independent Auditor</option></> })}
+                  {inp('Department Associated', editingUser.departmentId || '', v => setEditingUser(p => ({ ...p, departmentId: v })), { select: <><option value="">None (Department of Computing and Data Analytics)</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</> })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </ConfirmModal>
+
       {/* Edit Election Modal */}
       <ConfirmModal isOpen={!!editingElection} onClose={() => setEditingElection(null)} onConfirm={handleUpdateElection} title="Edit Election Details" confirmText="Save Changes">
         {editingElection && (
@@ -1747,7 +1907,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {inp('Start Date *', formatDateTimeLocal(editingElection.startTime), v => setEditingElection(p => ({ ...p, startTime: v })), { type: 'datetime-local', required: true })}
-              {inp('End Date *', formatDateTimeLocal(editingElection.endTime),     v => setEditingElection(p => ({ ...p, endTime: v })),   { type: 'datetime-local', required: true })}
+              {inp('End Date *', formatDateTimeLocal(editingElection.endTime), v => setEditingElection(p => ({ ...p, endTime: v })), { type: 'datetime-local', required: true })}
             </div>
             {inp('Estimated Eligible Voters Count', editingElection.eligibleVoterCount || 0, v => setEditingElection(p => ({ ...p, eligibleVoterCount: Number(v) })), { type: 'number' })}
           </div>

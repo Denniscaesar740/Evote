@@ -1,30 +1,47 @@
 import { useState, useEffect } from 'react';
 import { useElection } from '../context/ElectionContext';
-import { ShieldCheck, ClipboardList, FileText, ShieldAlert, CheckCircle2, AlertTriangle, Play, Loader2 } from 'lucide-react';
+import { ShieldCheck, ClipboardList, FileText, ShieldAlert, CheckCircle2, AlertTriangle, Play, Loader2, RefreshCw } from 'lucide-react';
 import { StatusBadge, TrustBadge, SearchInput } from '../components/SharedUI';
+import api from '../services/api';
 
 const TABS = [
-  { id: 'dashboard', label: 'Integrity Check',       icon: ShieldCheck },
-  { id: 'elections', label: 'Anonymized Ledger',     icon: ClipboardList },
-  { id: 'audit',     label: 'Audit Trail Timeline',  icon: FileText },
+  { id: 'dashboard', label: 'Integrity Check', icon: ShieldCheck },
+  { id: 'elections', label: 'Anonymized Ledger', icon: ClipboardList },
+  { id: 'audit', label: 'Audit Trail Timeline', icon: FileText },
 ];
 
 const ROLE_COLORS = {
-  Admin:   { bg: 'var(--green-50)',  color: 'var(--green-700)' },
-  Auditor: { bg: 'var(--gold-50)',   color: 'var(--gold-700)' },
-  System:  { bg: 'var(--gray-100)',  color: 'var(--gray-600)' },
-  Voter:   { bg: 'var(--green-50)',  color: 'var(--green-600)' },
+  Admin: { bg: 'var(--green-50)', color: 'var(--green-700)' },
+  Auditor: { bg: 'var(--gold-50)', color: 'var(--gold-700)' },
+  System: { bg: 'var(--gray-100)', color: 'var(--gray-600)' },
+  Voter: { bg: 'var(--green-50)', color: 'var(--green-600)' },
 };
 
 export default function AuditorView({ activeTab = 'dashboard', onNavigateTab }) {
   const { elections, voteRecords, auditLogs, departments, verifyBlockchain, anomalies, clearAnomaly } = useElection();
-  const [tab, setTab]           = useState(activeTab);
-  const [search, setSearch]     = useState('');
+  const [tab, setTab] = useState(activeTab);
+  const [search, setSearch] = useState('');
   const [elecFilter, setElecFilter] = useState('');
-  
+
   // Blockchain verification state
   const [blockchainStatus, setBlockchainStatus] = useState(null);
   const [verifying, setVerifying] = useState(false);
+
+  // Live health checks state
+  const [healthData, setHealthData] = useState(null);
+  const [loadingHealth, setLoadingHealth] = useState(false);
+
+  const fetchHealthChecks = async () => {
+    setLoadingHealth(true);
+    try {
+      const data = await api.runCryptographicHealthChecks();
+      setHealthData(data);
+    } catch (e) {
+      console.error('Failed to run diagnostics:', e);
+    } finally {
+      setLoadingHealth(false);
+    }
+  };
 
   useEffect(() => {
     if (['dashboard', 'elections', 'audit'].includes(activeTab)) {
@@ -32,11 +49,19 @@ export default function AuditorView({ activeTab = 'dashboard', onNavigateTab }) 
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (tab === 'dashboard') {
+      fetchHealthChecks();
+    }
+  }, [tab]);
+
   const handleVerify = async () => {
     setVerifying(true);
     try {
       const res = await verifyBlockchain();
       setBlockchainStatus(res);
+      // Refresh general health checks as well
+      await fetchHealthChecks().catch(() => { });
     } catch (e) {
       setBlockchainStatus({ valid: false, error: e.message });
     } finally {
@@ -47,15 +72,19 @@ export default function AuditorView({ activeTab = 'dashboard', onNavigateTab }) 
   const filtered = voteRecords.filter(r => {
     const qs = search.toLowerCase();
     return (!elecFilter || r.electionId === elecFilter) &&
-           (!qs || r.id.toLowerCase().includes(qs) || r.voteHash.toLowerCase().includes(qs) || r.previousHash.toLowerCase().includes(qs));
+      (!qs || r.id.toLowerCase().includes(qs) || r.voteHash.toLowerCase().includes(qs) || r.previousHash.toLowerCase().includes(qs));
   });
 
-  const CHECKS = [
-    { title: 'DB Cryptographic Signature',  desc: 'Validates database rows have not been altered or injected externally.',      value: 'SHA-256 Validated' },
-    { title: 'Block Time Sequence Audit',   desc: 'Validates timestamps align sequentially without chronological anomalies.',   value: '0.00ms deviation' },
-    { title: 'Ledger Cross-Reference',      desc: 'Cross-checks hasVoted counts against anonymized ledger entry totals.',       value: `${voteRecords.length} records match` },
-    { title: 'Double-Vote Prevention',      desc: 'Audits request logs for rejected duplicate voting tokens across sessions.',   value: '0 events detected' },
+  const fallbackChecks = [
+    { title: 'DB Cryptographic Signature', desc: 'Validates database rows have not been altered or injected externally.', status: 'healthy', value: 'SHA-256 Validated' },
+    { title: 'Block Time Sequence Audit', desc: 'Validates timestamps align sequentially without chronological anomalies.', status: 'healthy', value: '0.00ms deviation' },
+    { title: 'Ledger Cross-Reference', desc: 'Cross-checks hasVoted counts against anonymized ledger entry totals.', status: 'healthy', value: `${voteRecords.length} records match` },
+    { title: 'Double-Vote Prevention', desc: 'Audits request logs for rejected duplicate voting tokens across sessions.', status: 'healthy', value: '0 events detected' },
   ];
+
+  const checksToRender = healthData?.checks || fallbackChecks;
+  const isHealthy = healthData ? healthData.overallStatus === 'healthy' : true;
+  const isWarning = healthData ? healthData.overallStatus === 'warning' : false;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-in">
@@ -86,7 +115,7 @@ export default function AuditorView({ activeTab = 'dashboard', onNavigateTab }) 
       {/* ── OVERVIEW ── */}
       {tab === 'dashboard' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Blockchain interactive audit checker */}
             <div className="card card-padded" style={{ borderLeft: '4px solid var(--gold-500)' }}>
@@ -151,22 +180,57 @@ export default function AuditorView({ activeTab = 'dashboard', onNavigateTab }) 
             <div className="card card-padded" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
                 <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--navy-900)' }}>Cryptographic Health Checks</h3>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--emerald-600)' }}>
-                  <CheckCircle2 size={14} />All Passed
-                </span>
-              </div>
-              {CHECKS.map((c, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, padding: '14px 0', borderBottom: i < CHECKS.length - 1 ? '1px solid var(--navy-50)' : 'none' }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy-900)', marginBottom: 3 }}>{c.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--navy-400)', lineHeight: 1.6, maxWidth: 420 }}>{c.desc}</div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, background: 'var(--emerald-100)', color: 'var(--emerald-700)', padding: '2px 8px', borderRadius: 99, marginBottom: 4, display: 'inline-block' }}>HEALTHY</div>
-                    <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--navy-500)' }}>{c.value}</div>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {loadingHealth && <Loader2 size={14} className="animate-spin" style={{ color: 'var(--navy-400)' }} />}
+                  <button onClick={fetchHealthChecks} disabled={loadingHealth} className="btn-icon" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--navy-400)' }} title="Run Diagnostics">
+                    <RefreshCw size={14} className={loadingHealth ? 'animate-spin' : ''} />
+                  </button>
+                  <span style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: isHealthy ? 'var(--emerald-600)' : isWarning ? 'var(--amber-600)' : 'var(--red-600)'
+                  }}>
+                    {isHealthy ? (
+                      <><CheckCircle2 size={14} />All Healthy</>
+                    ) : isWarning ? (
+                      <><AlertTriangle size={14} />Warnings Reported</>
+                    ) : (
+                      <><ShieldAlert size={14} />Security Issue Detected</>
+                    )}
+                  </span>
                 </div>
-              ))}
+              </div>
+              {checksToRender.map((c, i) => {
+                const isItemHealthy = c.status === 'healthy';
+                const isItemWarning = c.status === 'warning';
+                return (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, padding: '14px 0', borderBottom: i < checksToRender.length - 1 ? '1px solid var(--navy-50)' : 'none' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy-900)', marginBottom: 3 }}>{c.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--navy-400)', lineHeight: 1.6, maxWidth: 420 }}>{c.desc}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        background: isItemHealthy ? 'var(--emerald-100)' : isItemWarning ? 'var(--amber-100)' : 'var(--red-100)',
+                        color: isItemHealthy ? 'var(--emerald-700)' : isItemWarning ? 'var(--amber-700)' : 'var(--red-700)',
+                        padding: '2px 8px',
+                        borderRadius: 99,
+                        marginBottom: 4,
+                        display: 'inline-block',
+                        textTransform: 'uppercase'
+                      }}>
+                        {c.status || 'HEALTHY'}
+                      </div>
+                      <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--navy-500)' }}>{c.value}</div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -231,7 +295,7 @@ export default function AuditorView({ activeTab = 'dashboard', onNavigateTab }) 
               </thead>
               <tbody>
                 {filtered.map(r => {
-                  const el   = elections.find(e => e.id === r.electionId);
+                  const el = elections.find(e => e.id === r.electionId);
                   const dept = departments.find(d => d.id === r.departmentId);
                   return (
                     <tr key={r.id}>

@@ -15,15 +15,17 @@ const API_BASE = getApiBase();
 
 class ApiService {
   constructor() {
-    this.token = localStorage.getItem('univote_token') || null;
+    this.token = typeof window !== 'undefined' ? localStorage.getItem('univote_token') : null;
   }
 
   setToken(token) {
     this.token = token;
-    if (token) {
-      localStorage.setItem('univote_token', token);
-    } else {
-      localStorage.removeItem('univote_token');
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem('univote_token', token);
+      } else {
+        localStorage.removeItem('univote_token');
+      }
     }
   }
 
@@ -182,6 +184,10 @@ class ApiService {
     return this.request(`/users${query}`);
   }
 
+  async getUser(id) {
+    return this.request(`/users/${id}`);
+  }
+
   async createUser(data) {
     return this.request('/users', { method: 'POST', body: data });
   }
@@ -198,9 +204,12 @@ class ApiService {
     return this.request('/users/import', { method: 'POST', body: { users } });
   }
 
-  async clearVoterRegistry(year) {
+  async clearVoterRegistry(year, password) {
     const url = year ? `/users/clear/voters?year=${encodeURIComponent(year)}` : '/users/clear/voters';
-    return this.request(url, { method: 'DELETE' });
+    return this.request(url, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Password': password }
+    });
   }
 
   // ── Departments ──
@@ -236,6 +245,28 @@ class ApiService {
 
   async createAnnouncement(data) {
     return this.request('/announcements', { method: 'POST', body: data });
+  }
+
+  // ── Notifications ──
+  async getNotifications(limit = 50) {
+    return this.request(`/notifications?limit=${limit}`);
+  }
+
+  async getUnreadNotificationsCount() {
+    return this.request('/notifications/unread-count');
+  }
+
+  async markNotificationRead(id) {
+    return this.request(`/notifications/${id}/read`, { method: 'POST' });
+  }
+
+  async markAllNotificationsRead() {
+    return this.request('/notifications/read-all', { method: 'POST' });
+  }
+
+  // ── Cryptographic Health Checks ──
+  async runCryptographicHealthChecks() {
+    return this.request('/health-checks/all');
   }
 }
 
