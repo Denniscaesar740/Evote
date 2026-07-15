@@ -3,8 +3,13 @@
 // ============================================
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import BlacklistedToken from '../models/BlacklistedToken.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'univote-fallback-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL ERROR: JWT_SECRET is not defined in environment variables.');
+  process.exit(1);
+}
 
 /**
  * Verifies JWT token and attaches user to req.user
@@ -17,6 +22,11 @@ export async function authenticate(req, res, next) {
 
   const token = header.split(' ')[1];
   try {
+    const isBlacklisted = await BlacklistedToken.findOne({ token }).lean();
+    if (isBlacklisted) {
+      return res.status(401).json({ error: 'Token has been revoked.' });
+    }
+
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.sub).select('student_id name email department_id role status').lean();
     if (!user) return res.status(401).json({ error: 'User not found.' });
@@ -26,6 +36,7 @@ export async function authenticate(req, res, next) {
     user.id = user._id;
     req.user = user;
     req.token = decoded;
+    req.tokenString = token;
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {

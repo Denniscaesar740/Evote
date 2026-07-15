@@ -12,13 +12,26 @@ const router = Router();
 async function runAnomalyDetection() {
   // 1. Off-Hours Access check
   const votes = await VoteRecord.find().select('timestamp').lean();
+
+  const voteLogs = await AuditLog.find({ action: 'Vote Cast' }).lean();
+  const ipMap = {};
+  for (const log of voteLogs) {
+    try {
+      const meta = log.metadata ? JSON.parse(log.metadata) : {};
+      if (meta.blockHash && meta.clientIp) {
+        ipMap[meta.blockHash] = meta.clientIp;
+      }
+    } catch (e) { }
+  }
+
   for (const v of votes) {
     const date = new Date(v.timestamp);
     const hour = date.getHours();
     if (hour >= 23 || hour < 5) {
       const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const dateStr = date.toISOString().split('T')[0];
-      const desc = `Vote request from external IP range on ${dateStr} at ${timeStr}. Flagged for review.`;
+      const clientIp = ipMap[v._id] || 'unknown';
+      const desc = `Vote request from IP ${clientIp} on ${dateStr} at ${timeStr}. Flagged for review.`;
       const id = `anomaly-offhours-${v._id}`;
       const existing = await Anomaly.findById(id).lean();
       if (!existing) await Anomaly.create({ _id: id, type: 'Off-Hours Access', desc, cleared: 0 });

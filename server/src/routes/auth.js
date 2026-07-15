@@ -3,17 +3,56 @@
 // ============================================
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import UserVote from '../models/UserVote.js';
 import AuditLog from '../models/AuditLog.js';
 import { authenticate } from '../middleware/auth.js';
 import { sendSMS, generateOTP } from '../utils/sms.js';
+import { sendOTPEmail } from '../utils/email.js';
+import { rateLimit } from 'express-rate-limit';
+import BlacklistedToken from '../models/BlacklistedToken.js';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'univote-fallback-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL ERROR: JWT_SECRET is not defined in environment variables.');
+  process.exit(1);
+}
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
 const OTP_EXPIRY_MINUTES = 10;
+
+// Rate Limiters
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts
+  message: { error: 'Too many login attempts. Please try again after 15 minutes.' },
+  keyGenerator: (req) => req.body.studentId || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { default: false },
+});
+
+const otpRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: { error: 'Too many OTP requests. Please try again after 15 minutes.' },
+  keyGenerator: (req) => req.body.studentId || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { default: false },
+});
+
+const otpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Too many OTP verification attempts. Please try again after 15 minutes.' },
+  keyGenerator: (req) => req.body.studentId || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { default: false },
+});
 
 // Helper: build token + user response
 async function buildAuthResponse(user) {
@@ -24,13 +63,14 @@ async function buildAuthResponse(user) {
   );
   const votedElections = (await UserVote.find({ user_id: user._id }).lean()).map(v => v.election_id);
 
+  const hashedStudentId = crypto.createHash('sha256').update(user.student_id).digest('hex');
   await AuditLog.create({
     _id: `log-${Date.now()}`,
     action: 'User Login',
     performed_by: user.name,
     role: user.role,
     timestamp: new Date().toISOString(),
-    metadata: JSON.stringify({ studentId: user.student_id }),
+    metadata: JSON.stringify({ studentIdHash: hashedStudentId }),
   });
 
   return {
@@ -49,7 +89,7 @@ async function buildAuthResponse(user) {
 }
 
 // POST /api/auth/login — password-based login (admins/auditors)
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { studentId, password } = req.body;
     if (!studentId || !password) {
@@ -57,21 +97,14 @@ router.post('/login', async (req, res) => {
     }
 
     const user = await User.findOne({ student_id: studentId }).lean();
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid Student ID or password. Please try again.' });
-    }
 
-    if (user.status === 'suspended') {
-      return res.status(403).json({ error: 'Account suspended. Contact administrator.' });
-    }
+    // To prevent timing attacks, perform a dummy comparison if password_hash is missing
+    const isMock = !user || !user.password_hash;
+    const hashToCompare = isMock ? bcrypt.hashSync('dummy', 10) : user.password_hash;
+    const valid = bcrypt.compareSync(password, hashToCompare);
 
-    if (!user.password_hash) {
-      return res.status(400).json({ error: 'This account uses OTP verification. Please use "Sign in with OTP" instead.' });
-    }
-
-    const valid = bcrypt.compareSync(password, user.password_hash);
-    if (!valid) {
-      return res.status(401).json({ error: 'Invalid Student ID or password. Please try again.' });
+    if (isMock || user.status === 'suspended' || !valid) {
+      return res.status(401).json({ error: 'Invalid Student ID or password.' });
     }
 
     const response = await buildAuthResponse(user);
@@ -83,7 +116,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/request-otp — send OTP code to voter's phone
-router.post('/request-otp', async (req, res) => {
+router.post('/request-otp', otpRequestLimiter, async (req, res) => {
   try {
     const { studentId } = req.body;
     if (!studentId) {
@@ -91,47 +124,63 @@ router.post('/request-otp', async (req, res) => {
     }
 
     const user = await User.findOne({ student_id: studentId });
-    if (!user) {
-      return res.status(404).json({ error: 'This Student/Reference ID is not registered. Contact your administrator.' });
-    }
 
-    if (user.status === 'suspended') {
-      return res.status(403).json({ error: 'Account suspended. Contact administrator.' });
-    }
+    const genericResponse = {
+      message: 'If this account exists and is active, a verification code has been sent.',
+      phone: 'your registered number',
+      expiresInMinutes: OTP_EXPIRY_MINUTES,
+    };
 
-    if (!user.phone_number) {
-      return res.status(400).json({ error: 'No phone number is linked to this account. Contact your administrator to update your record.' });
+    if (!user || user.status === 'suspended' || !user.phone_number) {
+      // Perform a dummy bcrypt hash to simulate processing time, mitigating timing checks
+      bcrypt.hashSync('dummy-otp', 10);
+      return res.json(genericResponse);
     }
 
     // Generate OTP and set expiry
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-    user.otp_code = otp;
+    const hashedOtp = bcrypt.hashSync(otp, 10);
+    user.otp_code = hashedOtp;
     user.otp_expires = expiresAt;
     await user.save();
 
-    // Mask phone number for response (show last 4 digits)
-    const maskedPhone = '****' + user.phone_number.slice(-4);
-
-    // Send SMS
+    // Send SMS (primary channel)
     const message = `UniVote ACSES UMaT\nYour verification code is: ${otp}\nThis code expires in ${OTP_EXPIRY_MINUTES} minutes.\nDo NOT share this code with anyone.`;
-    const sent = await sendSMS(user.phone_number, message);
+    const smsSent = await sendSMS(user.phone_number, message);
 
-    if (!sent) {
-      console.log('\n┌────────────────────────────────────────────────────────┐');
-      console.log('│ ⚠️  SMS GATEWAY BILLING WARNING (Hubtel Account Empty) │');
-      console.log(`│   Voter ID:  ${studentId.padEnd(38)} │`);
-      console.log(`│   Use OTP:   ${otp.padEnd(38)} │`);
-      console.log('│   (Copy & paste this code into the verification input) │');
-      console.log('└────────────────────────────────────────────────────────┘\n');
+    // If SMS fails, attempt email delivery as secondary channel
+    if (!smsSent) {
+      console.warn(`⚠️  SMS delivery failed for ${studentId} — attempting email fallback...`);
+      const emailSent = await sendOTPEmail(user.email, otp, studentId);
+
+      if (!emailSent) {
+        // Both channels failed — log securely without exposing OTP
+        console.error(`❌ Both SMS and email delivery failed for voter ${studentId}. OTP generated but undeliverable.`);
+
+        // Audit log the delivery failure
+        await AuditLog.create({
+          _id: `log-${Date.now()}`,
+          action: 'OTP Delivery Failed',
+          performed_by: 'System',
+          role: 'System',
+          timestamp: new Date().toISOString(),
+          metadata: JSON.stringify({
+            studentIdHash: crypto.createHash('sha256').update(studentId).digest('hex'),
+            smsStatus: 'failed',
+            emailStatus: 'failed',
+            reason: 'Both SMS gateway and SMTP relay unavailable'
+          })
+        }).catch(() => { });
+      } else {
+        // Email succeeded — update response to hint at email delivery
+        genericResponse.message = 'If this account exists and is active, a verification code has been sent to your registered email.';
+        genericResponse.phone = 'your registered email';
+      }
     }
 
-    res.json({
-      message: `A verification code has been sent to ${maskedPhone}.`,
-      phone: maskedPhone,
-      expiresInMinutes: OTP_EXPIRY_MINUTES,
-    });
+    res.json(genericResponse);
   } catch (err) {
     console.error('Request OTP error:', err);
     res.status(500).json({ error: 'Failed to send verification code.' });
@@ -139,7 +188,7 @@ router.post('/request-otp', async (req, res) => {
 });
 
 // POST /api/auth/verify-otp — verify OTP and login
-router.post('/verify-otp', async (req, res) => {
+router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
   try {
     const { studentId, otp } = req.body;
     if (!studentId || !otp) {
@@ -167,7 +216,8 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(401).json({ error: 'Verification code has expired. Please request a new one.' });
     }
 
-    if (user.otp_code !== otp.trim()) {
+    const isValidOtp = bcrypt.compareSync(otp.trim(), user.otp_code);
+    if (!isValidOtp) {
       return res.status(401).json({ error: 'Invalid verification code. Please check and try again.' });
     }
 
@@ -185,14 +235,43 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-// POST /api/auth/refresh — extend session
-router.post('/refresh', authenticate, (req, res) => {
-  const token = jwt.sign(
-    { sub: req.user.id, role: req.user.role, studentId: req.user.student_id },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
-  );
-  res.json({ token });
+// POST /api/auth/refresh — extend session with token rotation
+router.post('/refresh', authenticate, async (req, res) => {
+  try {
+    // Rotation: Blacklist the old token
+    if (req.tokenString && req.token && req.token.exp) {
+      await BlacklistedToken.create({
+        token: req.tokenString,
+        expires_at: new Date(req.token.exp * 1000),
+      }).catch(err => console.error('Token blacklist logging error:', err));
+    }
+
+    const token = jwt.sign(
+      { sub: req.user.id, role: req.user.role, studentId: req.user.student_id },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+    res.json({ token });
+  } catch (err) {
+    console.error('Refresh token error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// POST /api/auth/logout — revoke session token
+router.post('/logout', authenticate, async (req, res) => {
+  try {
+    if (req.tokenString && req.token && req.token.exp) {
+      await BlacklistedToken.create({
+        token: req.tokenString,
+        expires_at: new Date(req.token.exp * 1000),
+      });
+    }
+    res.json({ message: 'Successfully logged out.' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 });
 
 // GET /api/auth/me — get current user profile

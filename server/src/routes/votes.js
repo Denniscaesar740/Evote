@@ -42,6 +42,13 @@ router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
     const election = await Election.findById(electionId).lean();
     if (!election) { await session.abortTransaction(); return res.status(404).json({ error: 'Election not found.' }); }
     if (election.status !== 'active') { await session.abortTransaction(); return res.status(400).json({ error: 'Election is not active.' }); }
+
+    const now = new Date();
+    if (new Date(election.start_time) > now || new Date(election.end_time) < now) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'Voting is only permitted during the scheduled election timeframe.' });
+    }
+
     if (election.department_id && election.department_id !== req.user.department_id) { await session.abortTransaction(); return res.status(403).json({ error: 'Access denied. You are not eligible to vote in this departmental election.' }); }
 
     const alreadyVoted = await UserVote.findOne({ user_id: req.user.id, election_id: electionId }).lean();
@@ -66,9 +73,21 @@ router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
       await Candidate.updateOne({ _id: cId }, { $inc: { vote_count: 1 } }, { session });
     }
     await Election.updateOne({ _id: electionId }, { $inc: { total_votes_cast: 1 } }, { session });
-    await VoteRecord.create([{ _id: hash, block_index: nextIndex, election_id: electionId, candidate_ids: JSON.stringify(candidateIds), vote_hash: voteHash, department_id: req.user.department_id, timestamp, previous_hash: prevHash, nonce }], { session });
+    await VoteRecord.create([{ _id: hash, block_index: nextIndex, election_id: electionId, candidate_ids: JSON.stringify(candidateIds), vote_hash: voteHash, timestamp, previous_hash: prevHash, nonce }], { session });
     await UserVote.create([{ user_id: req.user.id, election_id: electionId }], { session });
-    await AuditLog.create([{ _id: `log-${Date.now()}`, action: 'Vote Cast', performed_by: 'Anonymous Voter', role: 'Voter', timestamp, metadata: JSON.stringify({ electionId, blockIndex: nextIndex, blockHash: hash }) }], { session });
+    await AuditLog.create([{
+      _id: `log-${Date.now()}`,
+      action: 'Vote Cast',
+      performed_by: 'Anonymous Voter',
+      role: 'Voter',
+      timestamp,
+      metadata: JSON.stringify({
+        electionId,
+        blockIndex: nextIndex,
+        blockHash: hash,
+        clientIp: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown'
+      })
+    }], { session });
 
     await session.commitTransaction();
     res.json({ message: 'Vote cast and secured on the blockchain.', receipt: { hash: `0x${voteHash}`, blockIndex: nextIndex, blockHash: hash, timestamp, txId, electionTitle: election.title } });
@@ -85,7 +104,7 @@ router.get('/records', authenticate, authorize('admin', 'auditor'), async (req, 
     const { electionId } = req.query;
     const filter = electionId ? { election_id: electionId } : {};
     const rows = await VoteRecord.find(filter).sort({ block_index: 1 }).lean();
-    res.json(rows.map(r => ({ blockIndex: r.block_index, id: r._id, electionId: r.election_id, candidateIds: JSON.parse(r.candidate_ids), voteHash: r.vote_hash, departmentId: r.department_id, timestamp: r.timestamp, previousHash: r.previous_hash, nonce: r.nonce })));
+    res.json(rows.map(r => ({ blockIndex: r.block_index, id: r._id, electionId: r.election_id, candidateIds: JSON.parse(r.candidate_ids), voteHash: r.vote_hash, timestamp: r.timestamp, previousHash: r.previous_hash, nonce: r.nonce })));
   } catch (err) { res.status(500).json({ error: 'Internal server error.' }); }
 });
 
@@ -118,12 +137,14 @@ router.get('/check/:electionId', authenticate, async (req, res) => {
 });
 
 // GET /api/votes/stats/turnout
-router.get('/stats/turnout', authenticate, async (req, res) => {
+router.get('/stats/turnout', authenticate, authorize('admin', 'auditor'), async (req, res) => {
   try {
     const depts = await Department.find().lean();
     const stats = await Promise.all(depts.map(async d => {
-      const voted = await VoteRecord.countDocuments({ department_id: d._id });
-      let eligible = await User.countDocuments({ department_id: d._id, role: 'voter' });
+      const deptUsers = await User.find({ department_id: d._id, role: 'voter' }).select('_id').lean();
+      const userIds = deptUsers.map(u => u._id);
+      const voted = await UserVote.countDocuments({ user_id: { $in: userIds } });
+      let eligible = userIds.length;
       if (eligible < voted) {
         const defaults = { 'dept-cs': 140, 'dept-ee': 90, 'dept-min': 95, 'dept-geo': 85 };
         eligible = defaults[d._id] || (voted + 10);
@@ -136,7 +157,7 @@ router.get('/stats/turnout', authenticate, async (req, res) => {
 });
 
 // GET /api/votes/stats/timeline
-router.get('/stats/timeline', authenticate, async (req, res) => {
+router.get('/stats/timeline', authenticate, authorize('admin', 'auditor'), async (req, res) => {
   try {
     const votes = await VoteRecord.find().sort({ timestamp: 1 }).select('timestamp').lean();
     if (!votes.length) return res.json([]);

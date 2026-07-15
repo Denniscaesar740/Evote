@@ -10,7 +10,6 @@ const voteRecordSchema = new mongoose.Schema({
   election_id: { type: String, required: true, ref: 'Election' },
   candidate_ids: { type: String, required: true },  // JSON string of candidate IDs
   vote_hash: { type: String, required: true },
-  department_id: { type: String, default: null },
   timestamp: { type: String, required: true },
   previous_hash: { type: String, required: true },
   nonce: { type: Number, required: true },

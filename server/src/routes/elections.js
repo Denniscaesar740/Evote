@@ -165,9 +165,10 @@ router.post('/:id/categories', authenticate, authorize('admin'), async (req, res
     const election = await Election.findById(req.params.id).lean();
     if (!election) return res.status(404).json({ error: 'Election not found.' });
 
+    const escapedName = name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const exists = await ElectionCategory.findOne({
       election_id: req.params.id,
-      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+      name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
     }).lean();
     if (exists) return res.status(409).json({ error: 'Category already exists.' });
 

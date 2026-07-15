@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true },
   password_hash: { type: String, default: null },   // null for OTP-only voters
   department_id: { type: String, default: null, ref: 'Department' },
-  role: { type: String, required: true, default: 'voter' },
+  role: { type: String, required: true, enum: ['voter', 'admin', 'auditor'], default: 'voter' },
   status: { type: String, required: true, default: 'active' },
   phone_number: { type: String, default: null },
   year: { type: String, default: null },

@@ -2,6 +2,7 @@
 // UTIL — Hubtel SMS Service
 // UniVote ACSES UMaT E-Voting System
 // ============================================
+import crypto from 'crypto';
 
 /**
  * Format a Ghana phone number to international format (+233XXXXXXXXX)
@@ -35,33 +36,37 @@ export async function sendSMS(phoneNumber, message) {
   }
 
   const formattedNumber = formatGhanaPhone(phoneNumber);
-  const recipient = formattedNumber.replace('+', ''); // strip the plus sign for the GET API
+  const recipient = formattedNumber.replace('+', '');
 
-  // Construct URL with credentials as query parameters (URL Authentication)
-  const url = `https://api.hubtel.com/v1/messages/send` +
-    `?From=${encodeURIComponent(senderId)}` +
-    `&To=${encodeURIComponent(recipient)}` +
-    `&Content=${encodeURIComponent(message)}` +
-    `&ClientId=${encodeURIComponent(clientId)}` +
-    `&ClientSecret=${encodeURIComponent(clientSecret)}` +
-    `&RegisteredDelivery=true`;
+  const url = `https://sms.hubtel.com/v1/messages/send`;
+  const authHeader = 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   try {
     const response = await fetch(url, {
-      method: 'GET',
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        From: senderId,
+        To: recipient,
+        Content: message,
+        RegisteredDelivery: true
+      })
     });
 
     const data = await response.json().catch(() => null);
 
     if (response.ok) {
-      console.log(`✅ SMS sent to ${formattedNumber} via Hubtel URL Authentication`);
+      console.log(`✅ SMS sent to ${formattedNumber} via Hubtel API`);
       return true;
     } else {
-      console.error('❌ Hubtel SMS URL Auth error:', data || response.statusText);
+      console.error('❌ Hubtel SMS API error:', data || response.statusText);
       return false;
     }
   } catch (error) {
-    console.error('❌ SMS URL Auth delivery failed:', error.message);
+    console.error('❌ SMS API delivery failed:', error.message);
     return false;
   }
 }
@@ -70,5 +75,5 @@ export async function sendSMS(phoneNumber, message) {
  * Generate a random 6-digit numeric OTP
  */
 export function generateOTP() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
