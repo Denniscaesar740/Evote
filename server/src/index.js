@@ -62,7 +62,8 @@ const allowedOrigins = process.env.CORS_ORIGIN
     'http://localhost:5174',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174'
+    'http://127.0.0.1:5174',
+    'https://evote-indol.vercel.app'
   ];
 
 app.use(cors({
@@ -70,8 +71,8 @@ app.use(cors({
     // Permit requests without Origin headers (same-origin, curl, server-to-server check)
     if (!origin) return callback(null, true);
 
-    // Permit matching origins
-    if (allowedOrigins.includes(origin)) {
+    // Permit matching origins or any Vercel deployments
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       return callback(null, true);
     }
 
