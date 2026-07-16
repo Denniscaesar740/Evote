@@ -117,7 +117,7 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res) => {
     const election = await Election.findById(req.params.id).lean();
     if (!election) return res.status(404).json({ error: 'Election not found.' });
 
-    const { title, description, status, startTime, endTime, eligibleVoterCount, type } = req.body;
+    const { title, description, status, startTime, endTime, eligibleVoterCount, type, departmentId } = req.body;
 
     const targetStartTime = new Date(startTime !== undefined ? startTime : election.start_time);
     const targetEndTime = new Date(endTime !== undefined ? endTime : election.end_time);
@@ -152,6 +152,7 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res) => {
     if (endTime !== undefined) updates.end_time = endTime;
     if (eligibleVoterCount !== undefined) updates.eligible_voter_count = eligibleVoterCount;
     if (type !== undefined) updates.type = type;
+    if (departmentId !== undefined) updates.department_id = departmentId;
 
     if (Object.keys(updates).length) {
       await Election.updateOne({ _id: req.params.id }, { $set: updates });
