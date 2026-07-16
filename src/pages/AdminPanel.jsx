@@ -299,7 +299,8 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
         year: editingUser.year,
         role: editingUser.role,
         departmentId: editingUser.departmentId || null,
-        status: editingUser.status
+        status: editingUser.status,
+        otpCount: editingUser.otpCount !== undefined ? editingUser.otpCount : null
       });
       addToast({ type: 'success', title: 'User Updated', message: `User "${editingUser.name}" details updated successfully.` });
       setEditingUser(null);
@@ -1907,6 +1908,37 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                   {inp('System Role', editingUser.role, v => setEditingUser(p => ({ ...p, role: v })), { select: <><option value="voter">Student Voter</option><option value="admin">Administrator</option><option value="auditor">Independent Auditor</option></> })}
                   {inp('Department Associated', editingUser.departmentId || '', v => setEditingUser(p => ({ ...p, departmentId: v })), { select: <><option value="">None (Department of Computing and Data Analytics)</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</> })}
                 </div>
+                {editingUser.role === 'voter' && (
+                  <div style={{ padding: 12, background: 'var(--navy-50)', borderRadius: 10, border: '1px solid rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                    <div style={{ fontSize: 13, color: 'var(--navy-700)' }}>
+                      🔑 SMS OTP Codes Sent: <strong style={{ color: (editingUser.otpCount || 0) >= 2 ? 'var(--red-600)' : 'var(--navy-900)' }}>{editingUser.otpCount || 0} / 2</strong>
+                    </div>
+                    {(editingUser.otpCount || 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingUser(p => ({ ...p, otpCount: 0 }));
+                          addToast({ type: 'info', message: 'SMS counter set to 0. Press "Save Changes" to apply.' });
+                        }}
+                        style={{
+                          background: 'var(--red-50)',
+                          border: '1.5px solid var(--red-100)',
+                          color: 'var(--red-600)',
+                          borderRadius: 8,
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={e => { e.target.style.background = 'var(--red-100)'; }}
+                        onMouseLeave={e => { e.target.style.background = 'var(--red-50)'; }}
+                      >
+                        Reset SMS Counter
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
