@@ -16,6 +16,9 @@ export default function LoginPage() {
   const [otpCode, setOtpCode] = useState('');
   const [maskedPhone, setMaskedPhone] = useState('');
 
+  const [phoneOptions, setPhoneOptions] = useState([]);
+  const [selectedMobileIndex, setSelectedMobileIndex] = useState('');
+
   const handleSubmit = async e => {
     e.preventDefault();
     if (!studentId.trim() || !password) return;
@@ -27,14 +30,21 @@ export default function LoginPage() {
     }
   };
 
-  const handleRequestOtp = async e => {
-    e.preventDefault();
+  const handleRequestOtp = async (e, selIdx = null) => {
+    if (e) e.preventDefault();
     if (!studentId.trim()) return;
     try {
-      const res = await requestOtp(studentId.trim());
-      setMaskedPhone(res.phone || 'your registered number');
-      setOtpStep(2);
-      addToast({ type: 'success', title: 'Verification Sent', message: res.message || 'OTP code sent.' });
+      const res = await requestOtp(studentId.trim(), selIdx);
+      if (res.requirePhoneSelection) {
+        setPhoneOptions(res.phones);
+        setSelectedMobileIndex(res.phones[0].index.toString());
+        addToast({ type: 'info', title: 'Multiple Numbers', message: 'Select registered mobile list item to receive your OTP.' });
+      } else {
+        setMaskedPhone(res.phone || 'your registered number');
+        setOtpStep(2);
+        setPhoneOptions([]);
+        addToast({ type: 'success', title: 'Verification Sent', message: res.message || 'OTP code sent.' });
+      }
     } catch (err) {
       addToast({ type: 'error', title: 'Request Failed', message: err.message || 'Could not send verification code.' });
     }
@@ -149,22 +159,70 @@ export default function LoginPage() {
 
             {loginMethod === 'otp' ? (
               otpStep === 1 ? (
-                <form onSubmit={handleRequestOtp}>
-                  <div style={{ marginBottom: 18 }}>
-                    <label className="form-label">Student ID / Reference Number</label>
-                    <input type="text" value={studentId} onChange={e => setStudentId(e.target.value)}
-                      className="form-input form-input-mono"
-                      placeholder="9012XXXXXXX"
-                      autoComplete="username" required />
-                    <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 6, lineHeight: 1.4 }}>
-                      A verification code will be sent to your registered mobile number.
-                    </p>
-                  </div>
+                phoneOptions.length > 0 ? (
+                  <form onSubmit={(e) => handleRequestOtp(e, parseInt(selectedMobileIndex, 10))}>
+                    <div style={{ marginBottom: 18 }}>
+                      <label className="form-label" style={{ fontWeight: 700 }}>Select Delivery Phone Number</label>
+                      <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 12, lineHeight: 1.4 }}>
+                        Multiple registered phone contacts detected. Select the number to receive the authentication code:
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {phoneOptions.map((p) => (
+                          <label key={p.index} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            padding: '12px 14px',
+                            border: `1.5px solid ${selectedMobileIndex === p.index.toString() ? 'var(--green-500)' : 'var(--border)'}`,
+                            background: selectedMobileIndex === p.index.toString() ? 'var(--green-50)' : 'transparent',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}>
+                            <input
+                              type="radio"
+                              name="selectedPhone"
+                              value={p.index}
+                              checked={selectedMobileIndex === p.index.toString()}
+                              onChange={() => setSelectedMobileIndex(p.index.toString())}
+                              style={{ accentColor: 'var(--green-600)', width: 16, height: 16 }}
+                            />
+                            <div>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy-900)' }}>SMS Channel {p.index + 1}</span>
+                              <span style={{ display: 'block', fontSize: 12, color: 'var(--gray-500)', fontFamily: 'var(--font-mono)' }}>{p.masked}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
 
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={isLoading}>
-                    {isLoading ? <><Loader2 size={15} className="animate-spin" /> Sending Code...</> : 'Send Code →'}
-                  </button>
-                </form>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button type="button" className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setPhoneOptions([])}>
+                        Back
+                      </button>
+                      <button type="submit" className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }} disabled={isLoading}>
+                        {isLoading ? <><Loader2 size={15} className="animate-spin" /> Sending...</> : 'Send OTP Code →'}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleRequestOtp}>
+                    <div style={{ marginBottom: 18 }}>
+                      <label className="form-label">Student ID / Reference Number</label>
+                      <input type="text" value={studentId} onChange={e => setStudentId(e.target.value)}
+                        className="form-input form-input-mono"
+                        placeholder="9012XXXXXXX"
+                        autoComplete="username" required />
+                      <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 6, lineHeight: 1.4 }}>
+                        A verification code will be sent to your registered mobile number.
+                      </p>
+                    </div>
+
+                    <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={isLoading}>
+                      {isLoading ? <><Loader2 size={15} className="animate-spin" /> Sending Code...</> : 'Send Code →'}
+                    </button>
+                  </form>
+                )
               ) : (
                 <form onSubmit={handleVerifyOtp}>
                   <div style={{ marginBottom: 14 }}>

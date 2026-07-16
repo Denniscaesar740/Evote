@@ -84,7 +84,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const [sortField, setSortField] = useState('name');
   const [sortAsc, setSortAsc] = useState(true);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', studentId: '', email: '', role: 'voter', departmentId: '', phoneNumber: '', year: '' });
+  const [newUser, setNewUser] = useState({ name: '', studentId: '', email: '', role: 'voter', departmentId: '', phoneNumber: '', year: '', password: '' });
 
   const [editingElection, setEditingElection] = useState(null);
 
@@ -276,12 +276,23 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     setNewNotice({ title: '', content: '', category: 'info', target: 'all' });
   };
 
-  const handleAddUser = () => {
-    if (!newUser.name || !newUser.studentId || !newUser.email) { addToast({ type: 'error', message: 'Fill all fields.' }); return; }
-    addUser({ ...newUser, id: `user-${Date.now()}`, hasVoted: [], status: 'active' });
-    addToast({ type: 'success', title: 'User Registered', message: `${newUser.name} added.` });
-    setShowAddUserModal(false);
-    setNewUser({ name: '', studentId: '', email: '', role: 'voter', departmentId: '', phoneNumber: '', year: '' });
+  const handleAddUser = async () => {
+    if (!newUser.name || !newUser.studentId || !newUser.email) {
+      addToast({ type: 'error', message: 'Fill all required fields.' });
+      return;
+    }
+    if ((newUser.role === 'admin' || newUser.role === 'auditor') && !newUser.password) {
+      addToast({ type: 'error', message: 'Assigned login password is required for admin/auditor accounts.' });
+      return;
+    }
+    try {
+      await addUser({ ...newUser, id: `user-${Date.now()}`, hasVoted: [], status: 'active' });
+      addToast({ type: 'success', title: 'User Registered', message: `${newUser.name} added successfully.` });
+      setShowAddUserModal(false);
+      setNewUser({ name: '', studentId: '', email: '', role: 'voter', departmentId: '', phoneNumber: '', year: '', password: '' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Registration Failed', message: err.message || 'System failed to add new user record.' });
+    }
   };
 
   const handleUpdateUser = async () => {
@@ -1911,6 +1922,9 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             {inp('System Role', newUser.role, v => setNewUser(p => ({ ...p, role: v })), { select: <><option value="voter">Student Voter</option><option value="admin">Administrator</option><option value="auditor">Independent Auditor</option></> })}
             {inp('Department Associated', newUser.departmentId, v => setNewUser(p => ({ ...p, departmentId: v })), { select: <><option value="">None (Department of Computing and Data Analytics)</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</> })}
           </div>
+          {(newUser.role === 'admin' || newUser.role === 'auditor') && (
+            inp('Login Password *', newUser.password || '', v => setNewUser(p => ({ ...p, password: v })), { type: 'password', placeholder: 'Set default password for Administrative Access' })
+          )}
         </div>
       </ConfirmModal>
 

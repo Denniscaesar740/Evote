@@ -107,10 +107,10 @@ export function AuthProvider({ children }) {
     }
   }, [startSessionTimer]);
 
-  const requestOtp = useCallback(async (studentId) => {
+  const requestOtp = useCallback(async (studentId, selectedPhoneIndex = null) => {
     dispatch({ type: 'LOGIN_START' });
     try {
-      const data = await api.requestOtp(studentId);
+      const data = await api.requestOtp(studentId, selectedPhoneIndex);
       dispatch({ type: 'LOGIN_ERROR', payload: null }); // clear error, stop loading
       return data;
     } catch (err) {

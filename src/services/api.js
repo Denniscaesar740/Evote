@@ -106,10 +106,10 @@ class ApiService {
     });
   }
 
-  async requestOtp(studentId) {
+  async requestOtp(studentId, selectedPhoneIndex = null) {
     return this.request('/auth/request-otp', {
       method: 'POST',
-      body: { studentId },
+      body: { studentId, selectedPhoneIndex },
     });
   }
 
