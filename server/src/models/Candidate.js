@@ -14,6 +14,7 @@ const candidateSchema = new mongoose.Schema({
   vote_count: { type: Number, required: true, default: 0 },
   color: { type: String, default: '#2e7d32' },
   picture: { type: String, default: null },
+  ballot_number: { type: Number, default: null },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: false },
   collection: 'candidates',

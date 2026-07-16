@@ -21,7 +21,7 @@ function formatCandidate(c) {
   return {
     id: c._id, electionId: c.election_id, name: c.name, department: c.department,
     position: c.position, manifesto: c.manifesto, voteCount: c.vote_count,
-    color: c.color, picture: c.picture,
+    color: c.color, picture: c.picture, ballotNumber: c.ballot_number,
   };
 }
 
@@ -67,7 +67,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
 router.post('/', authenticate, authorize('admin'), upload.single('picture'), async (req, res) => {
   try {
-    const { electionId, name, position, manifesto, color, department } = req.body;
+    const { electionId, name, position, manifesto, color, department, ballotNumber } = req.body;
     if (!electionId || !name || !position) return res.status(400).json({ error: 'electionId, name, and position are required.' });
     const election = await Election.findById(electionId).lean();
     if (!election) return res.status(404).json({ error: 'Election not found.' });
@@ -83,11 +83,52 @@ router.post('/', authenticate, authorize('admin'), upload.single('picture'), asy
       }
       picture = `data:${type.mime};base64,${req.file.buffer.toString('base64')}`;
     }
-    await Candidate.create({ _id: id, election_id: electionId, name, department: department || '', position, manifesto: manifesto || '', vote_count: 0, color: color || '#2e7d32', picture });
+    await Candidate.create({
+      _id: id,
+      election_id: electionId,
+      name,
+      department: department || '',
+      position,
+      manifesto: manifesto || '',
+      vote_count: 0,
+      color: color || '#2e7d32',
+      picture,
+      ballot_number: ballotNumber ? Number(ballotNumber) : null
+    });
     await AuditLog.create({ _id: `log-${Date.now()}`, action: 'Candidate Added', performed_by: req.user.name, role: 'Admin', timestamp: new Date().toISOString(), metadata: JSON.stringify({ electionId, candidate: name }) });
     const created = await Candidate.findById(id).lean();
     res.status(201).json(formatCandidate(created));
   } catch (err) { console.error('Create candidate error:', err); res.status(500).json({ error: 'Internal server error.' }); }
+});
+
+router.patch('/:id', authenticate, authorize('admin'), upload.single('picture'), async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.params.id);
+    if (!candidate) return res.status(404).json({ error: 'Candidate not found.' });
+    const { name, position, manifesto, color, department, ballotNumber } = req.body;
+    if (name !== undefined) candidate.name = name;
+    if (position !== undefined) candidate.position = position;
+    if (manifesto !== undefined) candidate.manifesto = manifesto;
+    if (color !== undefined) candidate.color = color;
+    if (department !== undefined) candidate.department = department;
+    if (ballotNumber !== undefined) candidate.ballot_number = ballotNumber ? Number(ballotNumber) : null;
+    let picture = req.body.pictureData || req.body.picture;
+    if (picture && typeof picture === 'string' && !picture.startsWith('data:image/')) {
+      return res.status(400).json({ error: 'Invalid picture format. Only base64 data URIs of images are allowed.' });
+    } else if (picture) {
+      candidate.picture = picture;
+    }
+    if (req.file) {
+      const type = await fileTypeFromBuffer(req.file.buffer);
+      if (!type || !['image/png', 'image/jpeg', 'image/webp'].includes(type.mime)) {
+        return res.status(400).json({ error: 'Invalid file format. Only PNG, JPEG, WebP allowed.' });
+      }
+      candidate.picture = `data:${type.mime};base64,${req.file.buffer.toString('base64')}`;
+    }
+    await candidate.save();
+    await AuditLog.create({ _id: `log-${Date.now()}`, action: 'Candidate Updated', performed_by: req.user.name, role: 'Admin', timestamp: new Date().toISOString(), metadata: JSON.stringify({ candidateId: candidate._id, name: candidate.name }) });
+    res.json(formatCandidate(candidate));
+  } catch (err) { console.error('Update candidate error:', err); res.status(500).json({ error: 'Internal server error.' }); }
 });
 
 router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
