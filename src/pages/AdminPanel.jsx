@@ -71,7 +71,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     doubleSign: true,
     sessionTimeout: 15,
     mfaRequired: false,
-    appName: 'UniVote — ACSES UMaT',
+    appName: 'UniVote ACSES-SRID eVoting',
   });
 
   // User Management States

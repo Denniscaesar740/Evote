@@ -61,7 +61,7 @@ export default function LoginPage() {
             <img src={acsesLogo} alt="ACSES Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
           <span style={{ fontWeight: 800, color: '#fff', fontSize: 15 }}>UniVote</span>
-          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, display: 'inline-block' }}>ACSES UMaT E-Voting</span>
+          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, display: 'inline-block' }}>ACSES-SRID eVoting</span>
         </div>
         <div className="trust-badges-wrapper" style={{ display: 'flex', gap: 6 }}>
           <span className="trust-badge trust-badge-secure">Encrypted</span>
@@ -79,7 +79,7 @@ export default function LoginPage() {
               <div style={{ width: 52, height: 52, borderRadius: 10, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
                 <img src={acsesLogo} alt="ACSES Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.5px' }}>UniVote<br />ACSES UMaT</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.5px' }}>UniVote<br />ACSES-SRID eVoting</h1>
               <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7 }}>
                 Secure, transparent, and auditable electronic voting for ACSES elections at the University of Mines and Technology, Tarkwa.
               </p>
@@ -103,7 +103,7 @@ export default function LoginPage() {
             </div>
 
             <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
-              © 2026 ACSES UMaT-SRID.
+              © 2026 ACSES-SRID eVoting.
             </div>
           </div>
 
@@ -116,7 +116,7 @@ export default function LoginPage() {
                 <img src={acsesLogo} alt="ACSES Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
               <h1 style={{ fontSize: 24, fontWeight: 900, color: 'var(--green-900)', margin: 0, letterSpacing: '-0.5px' }}>UniVote</h1>
-              <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '4px 0 0 0' }}>ACSES UMaT E-Voting System</p>
+              <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '4px 0 0 0' }}>ACSES-SRID eVoting System</p>
             </div>
 
             <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--gray-900)', marginBottom: 4 }}>Sign In</h2>
