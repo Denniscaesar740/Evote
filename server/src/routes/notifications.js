@@ -36,41 +36,7 @@ router.get('/', authenticate, async (req, res) => {
         const userRole = req.user.role;
         const limit = Math.min(parseInt(req.query.limit) || 50, 200);
 
-        // Auto-seed some starting alerts if the DB has no notifications at all
-        const totalCount = await Notification.countDocuments();
-        if (totalCount === 0) {
-            const defaultAlerts = [
-                {
-                    _id: `notif-seed-1`,
-                    text: 'ACSES Executive Election: 197 votes cast so far.',
-                    category: 'election',
-                    role_target: null,
-                    created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString() // 5m ago
-                },
-                {
-                    _id: `notif-seed-2`,
-                    text: 'Off-hours access attempt detected and logged system-wide.',
-                    category: 'security',
-                    role_target: 'admin',
-                    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() // 2h ago
-                },
-                {
-                    _id: `notif-seed-3`,
-                    text: 'CSE Level 300 Class Rep results have been locked and hashes verified.',
-                    category: 'result',
-                    role_target: null,
-                    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() // 3d ago
-                },
-                {
-                    _id: `notif-seed-4`,
-                    text: 'Mining Engineering SRC election draft created and pending candidate registry.',
-                    category: 'election',
-                    role_target: 'admin',
-                    created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString() // 4d ago
-                }
-            ];
-            await Notification.insertMany(defaultAlerts).catch(() => { });
-        }
+
 
         // Fetch notifications targeted to:
         // 1. This specific user (user_id match)

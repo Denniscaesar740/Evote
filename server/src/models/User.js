@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema({
   year: { type: String, default: null },
   otp_code: { type: String, default: null },
   otp_expires: { type: Date, default: null },
+  otp_count: { type: Number, default: 0 },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: false },
   collection: 'users',

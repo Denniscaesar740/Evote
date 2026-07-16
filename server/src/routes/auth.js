@@ -21,7 +21,7 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
-const OTP_EXPIRY_MINUTES = 10;
+const OTP_EXPIRY_MINUTES = 30;
 
 // Rate Limiters
 const loginLimiter = rateLimit({
@@ -137,6 +137,16 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
       return res.json(genericResponse);
     }
 
+    // 1. Enforce the limit of 2 SMS codes per reference number
+    if (user.otp_count !== undefined && user.otp_count >= 2) {
+      return res.status(400).json({ error: 'You have reached the maximum limit of 2 verification codes. Please contact the administrator.' });
+    }
+
+    // 2. Enforce the 30-minute cooldown (coinciding with the code's active period expiry)
+    if (user.otp_expires && new Date() < new Date(user.otp_expires)) {
+      return res.status(429).json({ error: 'A verification code is already active. You can only request another code after 30 minutes.' });
+    }
+
     // Generate OTP and set expiry
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
@@ -144,6 +154,7 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
     const hashedOtp = bcrypt.hashSync(otp, 10);
     user.otp_code = hashedOtp;
     user.otp_expires = expiresAt;
+    user.otp_count = (user.otp_count || 0) + 1;
     await user.save();
 
     // Send SMS (primary channel)

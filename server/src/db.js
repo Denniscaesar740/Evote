@@ -20,8 +20,16 @@ export async function connectDB() {
     await mongoose.connect(MONGODB_URI);
     console.log('✅ Connected to MongoDB Atlas');
   } catch (err) {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
+    console.warn('⚠️  MongoDB Atlas connection error:', err.message);
+    const localUri = 'mongodb://127.0.0.1:27017/evote';
+    console.log(`🔌 Attempting local MongoDB fallback connection: ${localUri}...`);
+    try {
+      await mongoose.connect(localUri);
+      console.log('✅ Connected to Local MongoDB');
+    } catch (localErr) {
+      console.error('❌ MongoDB Atlas & Local Fallback connections failed:', localErr.message);
+      process.exit(1);
+    }
   }
 }
 

@@ -397,6 +397,18 @@ app.use((req, res) => {
 // ─── Connect to MongoDB and Start ───
 async function start() {
   await connectDB();
+
+  // Clean up any remaining hardcoded seed notifications from database
+  try {
+    const mongoose = (await import('mongoose')).default;
+    if (mongoose.connection && mongoose.connection.db) {
+      await mongoose.connection.db.collection('notifications').deleteMany({ _id: /^notif-seed-/ });
+      console.log('🧹 Cleared all hardcoded seed notifications from DB.');
+    }
+  } catch (e) {
+    console.warn('⚠️  Could not clean up seed notifications collection:', e.message);
+  }
+
   initScheduler();
   app.listen(PORT, () => {
     const serverUrl = process.env.SERVER_URL || `http://localhost:${PORT}`;

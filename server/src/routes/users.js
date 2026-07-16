@@ -81,7 +81,7 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res) => {
   try {
     const user = await User.findById(req.params.id).lean();
     if (!user) return res.status(404).json({ error: 'User not found.' });
-    const { name, studentId, email, role, status, departmentId, phoneNumber, year } = req.body;
+    const { name, studentId, email, role, status, departmentId, phoneNumber, year, otpCount } = req.body;
     if (role !== undefined && !['voter', 'admin', 'auditor'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role value.' });
     }
@@ -100,6 +100,7 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res) => {
     if (departmentId !== undefined) updates.department_id = departmentId;
     if (phoneNumber !== undefined) updates.phone_number = phoneNumber;
     if (year !== undefined) updates.year = year;
+    if (otpCount !== undefined) updates.otp_count = otpCount;
     if (Object.keys(updates).length) await User.updateOne({ _id: req.params.id }, { $set: updates });
     await AuditLog.create({ _id: `log-${Date.now()}`, action: 'User Updated', performed_by: req.user.name, role: 'Admin', timestamp: new Date().toISOString(), metadata: JSON.stringify({ userId: req.params.id }) });
     const updated = await User.findById(req.params.id).lean();
