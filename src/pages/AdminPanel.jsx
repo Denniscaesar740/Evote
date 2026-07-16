@@ -897,9 +897,30 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                                             <div style={{ fontSize: 9.5, color: 'var(--gray-400)' }}>{c.department || 'Computing & Data Analytics'}</div>
                                           </div>
                                         </div>
-                                        <button title="Remove" onClick={() => { if (window.confirm(`Remove "${c.name}"?`)) { deleteCandidate(c.id); addToast({ type: 'success', message: `${c.name} removed.` }); } }} style={{ opacity: 0.4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--red-500)', padding: 2 }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0.4}>
-                                          <Trash2 size={12} />
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--green-50)', color: 'var(--green-800)', border: '1px solid var(--green-200)', padding: '2px 4px', borderRadius: 6 }}>
+                                            <span style={{ fontSize: 9, fontWeight: 700 }}>No.</span>
+                                            <input
+                                              type="number"
+                                              defaultValue={c.ballotNumber || ''}
+                                              onBlur={(e) => {
+                                                const val = e.target.value;
+                                                if (val !== (c.ballotNumber || '')) {
+                                                  updateCandidate(c.id, { ...c, ballotNumber: val });
+                                                  addToast({ type: 'success', message: `Ballot number updated` });
+                                                }
+                                              }}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') e.target.blur();
+                                              }}
+                                              placeholder="-"
+                                              style={{ width: 30, height: 16, fontSize: 10, fontWeight: 700, textAlign: 'center', border: 'none', background: 'var(--white)', borderRadius: 3, outline: 'none' }}
+                                            />
+                                          </div>
+                                          <button title="Remove" onClick={() => { if (window.confirm(`Remove "${c.name}"?`)) { deleteCandidate(c.id); addToast({ type: 'success', message: `${c.name} removed.` }); } }} style={{ opacity: 0.4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--red-500)', padding: 2 }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0.4}>
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </div>
                                       </div>
                                     ))}
                                     {!catCands.length && <div style={{ fontSize: 11, color: 'var(--gray-400)', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>No aspirants yet</div>}
@@ -1076,11 +1097,25 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                               <div className="cand-meta">{c.department || 'No department'}</div>
                               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                                 <span className="cand-position-tag">{c.position}</span>
-                                {c.ballotNumber && (
-                                  <span className="cand-position-tag" style={{ background: 'var(--green-50)', color: 'var(--green-800)', borderColor: 'var(--green-200)', fontWeight: 700 }}>
-                                    Ballot No. {c.ballotNumber}
-                                  </span>
-                                )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--green-50)', color: 'var(--green-800)', border: '1px solid var(--green-200)', padding: '2px 6px', borderRadius: 6 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700 }}>Ballot No.</span>
+                                  <input
+                                    type="number"
+                                    defaultValue={c.ballotNumber || ''}
+                                    onBlur={(e) => {
+                                      const val = e.target.value;
+                                      if (val !== (c.ballotNumber || '')) {
+                                        updateCandidate(c.id, { ...c, ballotNumber: val });
+                                        addToast({ type: 'success', message: `Ballot number updated for ${c.name}` });
+                                      }
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') e.target.blur();
+                                    }}
+                                    placeholder="-"
+                                    style={{ width: 36, height: 18, fontSize: 11, fontWeight: 700, textAlign: 'center', border: 'none', background: 'var(--white)', borderRadius: 3, outline: 'none' }}
+                                  />
+                                </div>
                                 {el && <span style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 500 }}>{el.title}</span>}
                               </div>
                             </div>
