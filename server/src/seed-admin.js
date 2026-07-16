@@ -38,12 +38,13 @@ async function seed() {
   }
 
   // 2. Seed Admin
+  const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@2026';
   const adminData = {
     _id: 'user-admin-001',
     student_id: 'ADMIN001',
     name: 'System Administrator',
     email: 'admin@univote.umat.edu.gh',
-    password_hash: bcrypt.hashSync('Admin@2026', 10),
+    password_hash: bcrypt.hashSync(adminPassword, 10),
     department_id: null,
     role: 'admin',
     status: 'active',
@@ -61,7 +62,7 @@ async function seed() {
 
   console.log('\n── Admin Login Credentials ──');
   console.log(`   Student ID : ${adminData.student_id}`);
-  console.log(`   Password   : Admin@2026`);
+  console.log(`   Password   : ${adminPassword}`);
   console.log('────────────────────────────\n');
 
   await mongoose.connection.close();

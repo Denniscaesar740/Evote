@@ -35,7 +35,11 @@ async function buildElection(row) {
 // GET /api/elections — list all elections
 router.get('/', authenticate, async (req, res) => {
   try {
-    const rows = await Election.find().sort({ created_at: -1 }).lean();
+    const filter = {};
+    if (req.user.role === 'voter') {
+      filter.status = { $ne: 'draft' };
+    }
+    const rows = await Election.find(filter).sort({ created_at: -1 }).lean();
     const elections = await Promise.all(rows.map(buildElection));
     res.json(elections);
   } catch (err) {

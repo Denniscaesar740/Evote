@@ -39,7 +39,7 @@ router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
     const { electionId, candidateIds } = req.body;
     if (!electionId || !Array.isArray(candidateIds)) return res.status(400).json({ error: 'electionId and candidateIds array are required.' });
 
-    const election = await Election.findById(electionId).lean();
+    const election = await Election.findById(electionId).session(session).lean();
     if (!election) { await session.abortTransaction(); return res.status(404).json({ error: 'Election not found.' }); }
     if (election.status !== 'active') { await session.abortTransaction(); return res.status(400).json({ error: 'Election is not active.' }); }
 
@@ -51,17 +51,17 @@ router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
 
     if (election.department_id && election.department_id !== req.user.department_id) { await session.abortTransaction(); return res.status(403).json({ error: 'Access denied. You are not eligible to vote in this departmental election.' }); }
 
-    const alreadyVoted = await UserVote.findOne({ user_id: req.user.id, election_id: electionId }).lean();
+    const alreadyVoted = await UserVote.findOne({ user_id: req.user.id, election_id: electionId }).session(session).lean();
     if (alreadyVoted) { await session.abortTransaction(); return res.status(409).json({ error: 'You have already voted in this election.' }); }
 
-    const validCands = await Candidate.find({ _id: { $in: candidateIds }, election_id: electionId }).lean();
+    const validCands = await Candidate.find({ _id: { $in: candidateIds }, election_id: electionId }).session(session).lean();
     if (validCands.length !== candidateIds.length) { await session.abortTransaction(); return res.status(400).json({ error: 'One or more candidate IDs are invalid for this election.' }); }
 
-    const candidateRows = await Candidate.find({ _id: { $in: candidateIds } }).select('position').lean();
+    const candidateRows = await Candidate.find({ _id: { $in: candidateIds } }).session(session).select('position').lean();
     const positions = candidateRows.map(c => c.position);
     if (new Set(positions).size !== positions.length) { await session.abortTransaction(); return res.status(400).json({ error: 'You may only select one candidate per position.' }); }
 
-    const lastBlock = await VoteRecord.findOne().sort({ block_index: -1 }).lean();
+    const lastBlock = await VoteRecord.findOne({}, null, { session }).sort({ block_index: -1 }).lean();
     const nextIndex = lastBlock ? lastBlock.block_index + 1 : 0;
     const prevHash = lastBlock ? lastBlock._id : '0';
     const timestamp = new Date().toISOString();
@@ -113,19 +113,56 @@ router.get('/blockchain/verify', authenticate, authorize('admin', 'auditor'), as
   try {
     const blocks = await VoteRecord.find().sort({ block_index: 1 }).lean();
     if (!blocks.length) return res.json({ valid: true, message: 'Blockchain is empty.' });
-    const errors = []; let prevHash = '0';
+
+    const errors = [];
+    let prevHash = '0';
+    const computedTallies = {};
+
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i];
       if (b.block_index !== i) errors.push({ type: 'INDEX_MISMATCH', blockIndex: b.block_index, expected: i });
       if (b.previous_hash !== prevHash) errors.push({ type: 'PREVIOUS_HASH_MISMATCH', blockIndex: b.block_index, stored: b.previous_hash, expected: prevHash });
-      const recomputedHash = calculateHash(b.block_index, b.timestamp, b.election_id, JSON.parse(b.candidate_ids), b.previous_hash, b.nonce);
+
+      let candidateIds;
+      try {
+        candidateIds = JSON.parse(b.candidate_ids);
+      } catch (e) {
+        errors.push({ type: 'BLOCK_DATA_CORRUPT', blockIndex: b.block_index, message: 'Invalid candidate IDs representation' });
+        candidateIds = [];
+      }
+
+      const recomputedHash = calculateHash(b.block_index, b.timestamp, b.election_id, candidateIds, b.previous_hash, b.nonce);
       if (b._id !== recomputedHash) errors.push({ type: 'HASH_MISMATCH', blockIndex: b.block_index, stored: b._id, recomputed: recomputedHash });
       if (!recomputedHash.startsWith('00')) errors.push({ type: 'POW_INVALID', blockIndex: b.block_index, hash: recomputedHash });
+
+      for (const cId of candidateIds) {
+        computedTallies[cId] = (computedTallies[cId] || 0) + 1;
+      }
+
       prevHash = b._id;
     }
+
+    // Direct tally consistency verification
+    const candidates = await Candidate.find().select('_id name vote_count').lean();
+    for (const cand of candidates) {
+      const expectedTally = computedTallies[cand._id] || 0;
+      if (cand.vote_count !== expectedTally) {
+        errors.push({
+          type: 'TALLY_INCONSISTENCY',
+          candidateId: cand._id,
+          candidateName: cand.name,
+          recordedVoteCount: cand.vote_count,
+          blockchainVoteCount: expectedTally
+        });
+      }
+    }
+
     if (errors.length > 0) return res.json({ valid: false, errors });
     res.json({ valid: true, message: 'Blockchain ledger is fully verified and tamper-free.' });
-  } catch (err) { res.status(500).json({ error: 'Internal server error.' }); }
+  } catch (err) {
+    console.error('Blockchain verification error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 });
 
 // GET /api/votes/check/:electionId

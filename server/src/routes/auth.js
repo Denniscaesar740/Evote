@@ -147,6 +147,34 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
       return res.status(400).json({ error: 'No registered telephone number found for this voter.' });
     }
 
+    const phoneList = user.phone_number.split(/[,\/]+/).map(p => p.trim()).filter(Boolean);
+    let targetPhone = null;
+
+    if (phoneList.length > 1) {
+      const { selectedPhoneIndex } = req.body;
+      if (selectedPhoneIndex === undefined || selectedPhoneIndex === null) {
+        const masked = phoneList.map((p, idx) => {
+          const clean = p.replace(/\D/g, '');
+          const lastFour = clean.slice(-4);
+          return {
+            index: idx,
+            masked: '*'.repeat(Math.max(0, clean.length - 4)) + lastFour
+          };
+        });
+        return res.json({
+          requirePhoneSelection: true,
+          phones: masked
+        });
+      }
+      const idxNum = parseInt(selectedPhoneIndex, 10);
+      if (isNaN(idxNum) || idxNum < 0 || idxNum >= phoneList.length) {
+        return res.status(400).json({ error: 'Invalid selected phone number index.' });
+      }
+      targetPhone = phoneList[idxNum];
+    } else {
+      targetPhone = phoneList[0];
+    }
+
     // 1. Enforce the limit of 2 SMS codes per reference number
     if ((user.otp_count || 0) >= 2) {
       return res.status(400).json({ error: 'You have reached the maximum limit of 2 verification codes. Please contact the administrator.' });
@@ -169,7 +197,7 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
 
     // Send SMS (primary channel)
     const message = `UniVote ACSES UMaT\nYour verification code is: ${otp}\nThis code expires in ${OTP_EXPIRY_MINUTES} minutes.\nDo NOT share this code with anyone.`;
-    const smsSent = await sendSMS(user.phone_number, message);
+    const smsSent = await sendSMS(targetPhone, message);
 
     // If SMS fails, attempt email delivery as secondary channel
     if (!smsSent) {
@@ -323,6 +351,10 @@ router.post('/change-password', authenticate, async (req, res) => {
     const user = await User.findById(req.user.id).lean();
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (!user.password_hash) {
+      return res.status(400).json({ error: 'Password authentication is not active for this account (OTP login style).' });
     }
 
     const valid = bcrypt.compareSync(currentPassword, user.password_hash);

@@ -17,4 +17,7 @@ const voteRecordSchema = new mongoose.Schema({
   collection: 'vote_records',
 });
 
+// Unique index on block_index to enforce ledger chain order
+voteRecordSchema.index({ block_index: 1 }, { unique: true });
+
 export default mongoose.model('VoteRecord', voteRecordSchema);

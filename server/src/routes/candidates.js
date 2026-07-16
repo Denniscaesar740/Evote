@@ -73,6 +73,9 @@ router.post('/', authenticate, authorize('admin'), upload.single('picture'), asy
     if (!election) return res.status(404).json({ error: 'Election not found.' });
     const id = `cand-${Date.now()}`;
     let picture = req.body.pictureData || req.body.picture || null;
+    if (picture && typeof picture === 'string' && !picture.startsWith('data:image/')) {
+      return res.status(400).json({ error: 'Invalid picture format. Only base64 data URIs of images are allowed.' });
+    }
     if (req.file) {
       const type = await fileTypeFromBuffer(req.file.buffer);
       if (!type || !['image/png', 'image/jpeg', 'image/webp'].includes(type.mime)) {
