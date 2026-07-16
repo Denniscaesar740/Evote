@@ -63,8 +63,8 @@ const allowedOrigins = process.env.CORS_ORIGIN
     'http://localhost:3000',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
-    'https://evote-indol.vercel.app'
-    'https://univote.acses-srid.com'
+    'https://evote-indol.vercel.app',
+    'https://univote.acses-srid.com',
   ];
 
 app.use(cors({
