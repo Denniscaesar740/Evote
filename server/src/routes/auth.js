@@ -131,10 +131,16 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
       expiresInMinutes: OTP_EXPIRY_MINUTES,
     };
 
-    if (!user || user.status === 'suspended' || !user.phone_number) {
-      // Perform a dummy bcrypt hash to simulate processing time, mitigating timing checks
-      bcrypt.hashSync('dummy-otp', 10);
-      return res.json(genericResponse);
+    if (!user) {
+      return res.status(404).json({ error: 'Voter record not found. Please verify your Student/Reference ID.' });
+    }
+
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: 'Voter account is suspended. Please contact the administrator.' });
+    }
+
+    if (!user.phone_number) {
+      return res.status(400).json({ error: 'No registered telephone number found for this voter.' });
     }
 
     // 1. Enforce the limit of 2 SMS codes per reference number
@@ -340,6 +346,53 @@ router.post('/change-password', authenticate, async (req, res) => {
     res.json({ message: 'Password updated successfully.' });
   } catch (err) {
     console.error('Change password error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// POST /api/auth/agent/login — authenticate a polling agent with a passcode
+router.post('/agent/login', async (req, res) => {
+  try {
+    const { passcode } = req.body;
+    if (!passcode) {
+      return res.status(400).json({ error: 'Agent passcode is required.' });
+    }
+
+    const expectedPasscode = process.env.AGENT_PASSCODE || 'agent123';
+    if (passcode !== expectedPasscode) {
+      return res.status(401).json({ error: 'Invalid agent passcode.' });
+    }
+
+    // Sign a token for agent role
+    const token = jwt.sign(
+      { sub: 'polling-agent', role: 'agent', name: 'Polling Agent' },
+      JWT_SECRET,
+      { expiresIn: '8h' } // Polling agent sessions expire in 8 hours
+    );
+
+    res.json({
+      token,
+      user: {
+        id: 'polling-agent',
+        studentId: 'AGENT-SESSION',
+        name: 'Polling Agent',
+        email: 'agent@univote.acses-srid.com',
+        role: 'agent',
+        status: 'active',
+      }
+    });
+
+    // Log to Audit Log
+    await AuditLog.create({
+      _id: `log-${Date.now()}`,
+      action: 'Agent Session Initiated',
+      performed_by: 'Polling Agent',
+      role: 'Agent',
+      timestamp: new Date().toISOString(),
+      metadata: JSON.stringify({}),
+    });
+  } catch (err) {
+    console.error('Agent login error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });

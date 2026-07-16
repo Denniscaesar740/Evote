@@ -137,7 +137,7 @@ router.get('/check/:electionId', authenticate, async (req, res) => {
 });
 
 // GET /api/votes/stats/turnout
-router.get('/stats/turnout', authenticate, authorize('admin', 'auditor'), async (req, res) => {
+router.get('/stats/turnout', authenticate, authorize('admin', 'auditor', 'agent'), async (req, res) => {
   try {
     const depts = await Department.find().lean();
     const stats = await Promise.all(depts.map(async d => {
@@ -157,7 +157,7 @@ router.get('/stats/turnout', authenticate, authorize('admin', 'auditor'), async 
 });
 
 // GET /api/votes/stats/timeline
-router.get('/stats/timeline', authenticate, authorize('admin', 'auditor'), async (req, res) => {
+router.get('/stats/timeline', authenticate, authorize('admin', 'auditor', 'agent'), async (req, res) => {
   try {
     const votes = await VoteRecord.find().sort({ timestamp: 1 }).select('timestamp').lean();
     if (!votes.length) return res.json([]);
@@ -170,6 +170,72 @@ router.get('/stats/timeline', authenticate, authorize('admin', 'auditor'), async
     });
     res.json(Object.entries(groups).map(([time, votesCount]) => ({ time, votes: votesCount })));
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/votes/public-live/:electionId
+// Public, unauthenticated link for Polling Agent live dashboards
+router.get('/public-live/:electionId', async (req, res) => {
+  try {
+    const { electionId } = req.params;
+    const election = await Election.findById(electionId).lean();
+    if (!election) return res.status(404).json({ error: 'Election not found.' });
+
+    // 1. Fetch Candidates with actual vote totals
+    const cands = await Candidate.find({ election_id: electionId }).sort({ created_at: 1 }).lean();
+    const formattedCands = cands.map(c => ({
+      id: c._id,
+      electionId: c.election_id,
+      name: c.name,
+      department: c.department,
+      position: c.position,
+      manifesto: c.manifesto,
+      voteCount: c.vote_count,
+      color: c.color,
+      picture: c.picture
+    }));
+
+    // 2. Fetch Turnout stats per department
+    const depts = await Department.find().lean();
+    const turnoutStats = await Promise.all(depts.map(async d => {
+      const deptUsers = await User.find({ department_id: d._id, role: 'voter' }).select('_id').lean();
+      const userIds = deptUsers.map(u => u._id);
+      const voted = await UserVote.countDocuments({ election_id: electionId, user_id: { $in: userIds } });
+      let eligible = userIds.length;
+      if (eligible < voted) {
+        const defaults = { 'dept-cs': 140, 'dept-ee': 90, 'dept-min': 95, 'dept-geo': 85 };
+        eligible = defaults[d._id] || (voted + 10);
+      }
+      const turnout = eligible > 0 ? Math.round((voted / eligible) * 1000) / 10 : 0;
+      return { department: d.code, eligible, voted, turnout };
+    }));
+
+    // 3. Fetch Timeline statistics
+    const votes = await VoteRecord.find({ electionId }).sort({ timestamp: 1 }).select('timestamp').lean();
+    const groups = {};
+    votes.forEach(v => {
+      try {
+        const dateStr = new Date(v.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        groups[dateStr] = (groups[dateStr] || 0) + 1;
+      } catch (e) { /* ignore */ }
+    });
+    const timelineStats = Object.entries(groups).map(([time, votesCount]) => ({ time, votes: votesCount }));
+
+    res.json({
+      election: {
+        id: election._id,
+        title: election.title,
+        status: election.status,
+        totalVotesCast: election.total_votes_cast,
+        eligibleVoterCount: election.eligible_voter_count,
+      },
+      candidates: formattedCands,
+      turnoutStats,
+      timelineStats
+    });
+  } catch (err) {
+    console.error('Public live tracker error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 });
 
 export default router;

@@ -28,7 +28,19 @@ export async function authenticate(req, res, next) {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.sub).select('student_id name email department_id role status').lean();
+    let user;
+    if (decoded.sub === 'polling-agent') {
+      user = {
+        _id: 'polling-agent',
+        student_id: 'AGENT-SESSION',
+        name: 'Polling Agent',
+        email: 'agent@univote.acses-srid.com',
+        role: 'agent',
+        status: 'active',
+      };
+    } else {
+      user = await User.findById(decoded.sub).select('student_id name email department_id role status').lean();
+    }
     if (!user) return res.status(401).json({ error: 'User not found.' });
     if (user.status === 'suspended') return res.status(403).json({ error: 'Account suspended. Contact administrator.' });
 

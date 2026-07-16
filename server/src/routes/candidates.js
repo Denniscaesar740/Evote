@@ -31,16 +31,16 @@ router.get('/', authenticate, async (req, res) => {
     const filter = electionId ? { election_id: electionId } : {};
     const rows = await Candidate.find(filter).sort({ created_at: 1 }).lean();
 
-    const isAdminOrAuditor = req.user.role === 'admin' || req.user.role === 'auditor';
+    const isAuthorizedResultViewer = req.user.role === 'admin' || req.user.role === 'auditor' || req.user.role === 'agent';
     const elections = {};
-    if (!isAdminOrAuditor) {
+    if (!isAuthorizedResultViewer) {
       const elecDocs = await Election.find().lean();
       elecDocs.forEach(e => elections[e._id] = e.status);
     }
 
     res.json(rows.map(c => {
       const formatted = formatCandidate(c);
-      if (!isAdminOrAuditor && elections[c.election_id] !== 'closed') {
+      if (!isAuthorizedResultViewer && elections[c.election_id] !== 'closed') {
         formatted.voteCount = undefined;
       }
       return formatted;
@@ -54,8 +54,8 @@ router.get('/:id', authenticate, async (req, res) => {
     if (!row) return res.status(404).json({ error: 'Candidate not found.' });
 
     const formatted = formatCandidate(row);
-    const isAdminOrAuditor = req.user.role === 'admin' || req.user.role === 'auditor';
-    if (!isAdminOrAuditor) {
+    const isAuthorizedResultViewer = req.user.role === 'admin' || req.user.role === 'auditor' || req.user.role === 'agent';
+    if (!isAuthorizedResultViewer) {
       const election = await Election.findById(row.election_id).lean();
       if (election && election.status !== 'closed') {
         formatted.voteCount = undefined;
