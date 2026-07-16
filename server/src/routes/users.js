@@ -156,7 +156,7 @@ router.post('/import', authenticate, authorize('admin'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const { users } = req.body;
+    const { users, resolveStrategy } = req.body;
     if (!Array.isArray(users) || !users.length) {
       await session.abortTransaction();
       session.endSession();
@@ -167,7 +167,7 @@ router.post('/import', authenticate, authorize('admin'), async (req, res) => {
     const validationErrors = [];
     const studentIdSet = new Set();
 
-    // 1st Pass: Validation & Deduplication checks
+    // 1st Pass: Validation & Deduplication checks in batch
     for (let i = 0; i < users.length; i++) {
       const u = users[i];
       const rowNum = i + 1;
@@ -198,9 +198,106 @@ router.post('/import', authenticate, authorize('admin'), async (req, res) => {
       return res.status(400).json({ error: 'Import validation failed.', details: validationErrors });
     }
 
+    // Duplicate Check against DB (names, studentIds, emails, phones)
+    const names = users.map(u => u.name.trim()).filter(Boolean);
+    const studentIds = users.map(u => u.studentId.trim()).filter(Boolean);
+    const emails = users.map(u => u.email.trim()).filter(Boolean);
+    const phones = users.map(u => {
+      let p = u.phone || u.phoneNumber || u.phone_number;
+      if (p) {
+        p = String(p).trim();
+        if (/^\d{9,10}$/.test(p) && !p.startsWith('0')) p = '0' + p;
+      }
+      return p;
+    }).filter(Boolean);
+
+    const existingUsers = await User.find({
+      $or: [
+        { name: { $in: names } },
+        { student_id: { $in: studentIds } },
+        { email: { $in: emails } },
+        { phone_number: { $in: phones } }
+      ]
+    }).lean();
+
+    const conflicts = [];
+    for (const u of users) {
+      const uPhone = (() => {
+        let p = u.phone || u.phoneNumber || u.phone_number;
+        if (p) {
+          p = String(p).trim();
+          if (/^\d{9,10}$/.test(p) && !p.startsWith('0')) p = '0' + p;
+        }
+        return p;
+      })();
+
+      const match = existingUsers.find(ex =>
+        ex.student_id === u.studentId.trim() ||
+        ex.name.trim().toLowerCase() === u.name.trim().toLowerCase() ||
+        ex.email.trim().toLowerCase() === u.email.trim().toLowerCase() ||
+        (uPhone && ex.phone_number === uPhone)
+      );
+
+      if (match) {
+        let reason = '';
+        if (match.student_id === u.studentId.trim()) reason = `Reference ID '${u.studentId}' already exists`;
+        else if (match.name.trim().toLowerCase() === u.name.trim().toLowerCase()) reason = `Name '${u.name}' already exists`;
+        else if (match.email.trim().toLowerCase() === u.email.trim().toLowerCase()) reason = `Email '${u.email}' already exists`;
+        else if (uPhone && match.phone_number === uPhone) reason = `Phone number '${uPhone}' already exists`;
+
+        conflicts.push({
+          user: u,
+          existingUser: {
+            name: match.name,
+            studentId: match.student_id,
+            email: match.email,
+            phoneNumber: match.phone_number
+          },
+          reason
+        });
+      }
+    }
+
+    if (conflicts.length > 0 && !resolveStrategy) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(409).json({
+        error: 'import_conflicts',
+        message: 'Duplicate voter records found.',
+        conflicts
+      });
+    }
+
+    let usersToImport = users;
+    if (resolveStrategy === 'reject') {
+      usersToImport = users.filter(u => {
+        const uPhone = (() => {
+          let p = u.phone || u.phoneNumber || u.phone_number;
+          if (p) {
+            p = String(p).trim();
+            if (/^\d{9,10}$/.test(p) && !p.startsWith('0')) p = '0' + p;
+          }
+          return p;
+        })();
+
+        return !existingUsers.some(ex =>
+          ex.student_id === u.studentId.trim() ||
+          ex.name.trim().toLowerCase() === u.name.trim().toLowerCase() ||
+          ex.email.trim().toLowerCase() === u.email.trim().toLowerCase() ||
+          (uPhone && ex.phone_number === uPhone)
+        );
+      });
+    }
+
+    if (!usersToImport.length) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.json({ message: 'No new voters were imported; all conflicting records were rejected.', count: 0 });
+    }
+
     // 2nd Pass: Write DB transactions under validation consistency
     let importedCount = 0;
-    for (const u of users) {
+    for (const u of usersToImport) {
       const id = `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const role = u.role || 'voter';
       const hash = role === 'voter' ? null : bcrypt.hashSync(u.password || u.studentId || 'admin123', 10);
