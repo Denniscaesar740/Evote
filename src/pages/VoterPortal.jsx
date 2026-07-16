@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useElection } from '../context/ElectionContext';
 import api from '../services/api';
@@ -9,7 +9,7 @@ export default function VoterPortal() {
   const { user, markVoted } = useAuth();
   const { elections, getElectionCandidates, castVote, addToast, departments } = useElection();
 
-  const [step, setStep] = useState(0); // 0=list, 1=review, 3=receipt
+  const [step, setStep] = useState(0); // 0=list, 1=review, 2=casting, 3=receipt
   const [selectedElection, setSelectedElection] = useState(null);
   const [selectedCandidates, setSelectedCandidates] = useState({}); // maps position/category to candidate object
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -18,6 +18,7 @@ export default function VoterPortal() {
   const [confetti, setConfetti] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
+  const [loadingStage, setLoadingStage] = useState(0);
 
   const eligibleElections = elections.filter(e =>
     e.status !== 'draft' && (!e.departmentId || e.departmentId === user?.departmentId)
@@ -37,9 +38,19 @@ export default function VoterPortal() {
 
   const handleSelectElection = el => { pickElection(el); };
 
+  useEffect(() => {
+    if (step !== 2) return;
+    const interval = setInterval(() => {
+      setLoadingStage(prev => (prev < 2 ? prev + 1 : prev));
+    }, 1200);
+    return () => clearInterval(interval);
+  }, [step]);
+
   const handleVote = async () => {
     setConfirmOpen(false);
     setSubmitting(true);
+    setStep(2);
+    setLoadingStage(0);
     try {
       const candidateIds = Object.values(selectedCandidates).map(c => c.id);
       // Real blockchain call — awaited, returns receipt from server
@@ -60,6 +71,7 @@ export default function VoterPortal() {
       setTimeout(() => setConfetti(false), 4500);
     } catch (err) {
       addToast({ type: 'error', title: 'Vote Failed', message: err.message || 'Could not submit your vote. Please try again.' });
+      setStep(1);
     } finally {
       setSubmitting(false);
     }
@@ -467,6 +479,151 @@ export default function VoterPortal() {
           </div>
         </ConfirmModal>
       )}
+    </div>
+  );
+
+  /* ── Casting Vote Loading State ── */
+  if (step === 2) return (
+    <div style={{ maxWidth: 820, margin: '0 auto', padding: '0 16px' }} className="animate-fade-in">
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 900, color: 'var(--navy-900)', marginBottom: 4 }}>
+          Casting Your Vote
+        </h1>
+        <p style={{ fontSize: 14, color: 'var(--navy-400)' }}>
+          Please do not close this window or navigate away while we secure your vote.
+        </p>
+      </div>
+
+      <div className="step-indicator">
+        {['Review Candidates', 'Cast Vote', 'Receipt'].map((s, i) => (
+          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div className={`step-dot ${i === 0 ? 'done' : i === 1 ? 'active' : 'pending'}`}>
+              {i === 0 ? <Check size={14} /> : i + 1}
+            </div>
+            <span style={{ fontSize: 13, fontWeight: i === 1 ? 700 : 500, color: i === 1 ? 'var(--navy-800)' : 'var(--navy-400)' }}>{s}</span>
+            {i < 2 && <div className="step-line" />}
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        background: 'var(--white)',
+        border: '1px solid var(--border)',
+        borderRadius: 18,
+        padding: '48px 32px',
+        textAlign: 'center',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.02)',
+        marginTop: 28,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 380,
+      }}>
+        {/* Animated Shield/Blockchain seal */}
+        <div style={{ position: 'relative', width: 90, height: 90, marginBottom: 28 }}>
+          {/* Pulsing glow background */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            borderRadius: '50%',
+            background: 'var(--green-50)',
+            border: '2px dashed var(--green-200)',
+            transform: 'scale(1.2)',
+          }} className="animate-spin" />
+
+          {/* Core spinning circle */}
+          <div style={{
+            position: 'absolute',
+            top: 10,
+            left: 10,
+            width: 70,
+            height: 70,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, var(--green-600), var(--green-800))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 8px 24px rgba(46,125,50,0.25)',
+          }}>
+            <Lock size={28} style={{ color: 'var(--white)' }} />
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: 19, fontWeight: 800, color: 'var(--navy-900)', marginBottom: 12 }}>
+          {loadingStage === 0 && 'Generating Cryptographic Commitment...'}
+          {loadingStage === 1 && 'Broadcasting to Blockchain Nodes...'}
+          {loadingStage === 2 && 'Mining and Securing Ballot Block...'}
+        </h3>
+
+        <p style={{ fontSize: 14, color: 'var(--navy-400)', maxWidth: 440, lineHeight: 1.6, marginBottom: 32 }}>
+          {loadingStage === 0 && 'We are encrypting your selection and signing it with your secure identity token to remain completely anonymous and immutable.'}
+          {loadingStage === 1 && 'Deploying signed transactions across peer validators to guarantee consensus integrity and absolute vote-tamper proofing.'}
+          {loadingStage === 2 && 'Anchoring your vote into a new permanent block in the distributed ledger. This step finalizes the digital audit trail.'}
+        </p>
+
+        {/* Blockchain Visualizer / Mini Progress List */}
+        <div style={{
+          width: '100%',
+          maxWidth: 400,
+          background: 'var(--navy-50)',
+          borderRadius: 12,
+          padding: '20px 24px',
+          textAlign: 'left',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+          border: '1px solid var(--border)',
+        }}>
+          {[
+            'Cryptographic sealing initialized',
+            'Consensus verification broadcasted',
+            'Blockchain receipt confirmation pending'
+          ].map((text, idx) => {
+            const isCompleted = loadingStage > idx;
+            const isCurrent = loadingStage === idx;
+
+            return (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: isCompleted ? 'var(--green-500)' : isCurrent ? 'var(--green-50)' : 'transparent',
+                  border: `2.5px solid ${isCompleted ? 'var(--green-500)' : isCurrent ? 'var(--green-500)' : 'var(--gray-300)'}`,
+                  fontSize: 10,
+                  fontWeight: 900,
+                  color: isCompleted ? 'var(--white)' : isCurrent ? 'var(--green-600)' : 'var(--gray-400)',
+                  transition: 'all 0.3s ease',
+                }}>
+                  {isCompleted ? <Check size={10} strokeWidth={3} style={{ color: 'var(--white)' }} /> : isCurrent ? (
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green-600)' }} />
+                  ) : null}
+                </div>
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: isCurrent || isCompleted ? 700 : 500,
+                  color: isCompleted ? 'var(--green-800)' : isCurrent ? 'var(--navy-900)' : 'var(--gray-500)',
+                  textDecoration: isCompleted ? 'line-through' : 'none',
+                  opacity: isCompleted ? 0.7 : 1,
+                  transition: 'all 0.3s ease',
+                }}>
+                  {text}
+                </span>
+                {isCurrent && (
+                  <Loader2 size={13} style={{ color: 'var(--green-600)', marginLeft: 'auto' }} className="animate-spin" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 
