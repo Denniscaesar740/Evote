@@ -138,7 +138,7 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
     }
 
     // 1. Enforce the limit of 2 SMS codes per reference number
-    if (user.otp_count !== undefined && user.otp_count >= 2) {
+    if ((user.otp_count || 0) >= 2) {
       return res.status(400).json({ error: 'You have reached the maximum limit of 2 verification codes. Please contact the administrator.' });
     }
 

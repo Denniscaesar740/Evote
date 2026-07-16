@@ -32,7 +32,7 @@ function maskPhone(phone) {
 }
 
 function formatUser(u, maskPII = true) {
-  return { id: u._id, studentId: u.student_id, name: u.name, email: maskPII ? maskEmail(u.email) : u.email, departmentId: u.department_id, role: u.role, status: u.status, phoneNumber: maskPII ? maskPhone(u.phone_number) : u.phone_number, year: u.year };
+  return { id: u._id, studentId: u.student_id, name: u.name, email: maskPII ? maskEmail(u.email) : u.email, departmentId: u.department_id, role: u.role, status: u.status, phoneNumber: maskPII ? maskPhone(u.phone_number) : u.phone_number, year: u.year, otpCount: u.otp_count || 0 };
 }
 
 // GET /api/users
