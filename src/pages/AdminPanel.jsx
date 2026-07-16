@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useElection } from '../context/ElectionContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { getSyncedDate } from '../utils/time';
 import { LayoutDashboard, ClipboardList, Users, UserCheck, FileText, PieChart, Plus, Upload, ShieldCheck, ShieldAlert, FileDown, Clock, CheckCircle, Check, Settings, Calendar, UserPlus, Bell, Trash2, FileSpreadsheet, Download, AlertTriangle, Eye, X, Layers } from 'lucide-react';
 import { StatCard, StatusBadge, CountdownTimer, ConfirmModal } from '../components/SharedUI';
 import readXlsxFile from 'read-excel-file/browser';
@@ -46,6 +47,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [importStats, setImportStats] = useState(null); // { count, fileName, timestamp }
+  const [conflictResponse, setConflictResponse] = useState(null);
 
   const [addingCategory, setAddingCategory] = useState({});
 
@@ -262,7 +264,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     addAnnouncement({
       ...newNotice,
       id: `ann-${Date.now()}`,
-      timestamp: new Date().toISOString(),
+      timestamp: getSyncedDate().toISOString(),
     });
     addToast({ type: 'success', title: 'Notice Posted', message: 'Announcement has been broadcast.' });
     setNewNotice({ title: '', content: '', category: 'info', target: 'all' });
@@ -419,8 +421,33 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     setImporting(true);
     try {
       const res = await importUsers(importPreview.rows);
-      setImportStats({ count: res.count, fileName: importPreview.fileName, timestamp: new Date().toISOString() });
+      setImportStats({ count: res.count, fileName: importPreview.fileName, timestamp: getSyncedDate().toISOString() });
       addToast({ type: 'success', title: 'Imported Successfully', message: `${res.count} voters imported from ${importPreview.fileName}.` });
+      setShowImportPreview(false);
+      setImportPreview(null);
+    } catch (err) {
+      if (err.message === 'import_conflicts' && err.data?.conflicts) {
+        setConflictResponse({ conflicts: err.data.conflicts });
+      } else {
+        addToast({ type: 'error', title: 'Import Failed', message: err.message || 'Error importing voters.' });
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleImportWithStrategy = async (strategy) => {
+    if (!importPreview?.rows?.length) return;
+    setImporting(true);
+    setConflictResponse(null);
+    try {
+      const res = await importUsers(importPreview.rows, strategy);
+      setImportStats({ count: res.count, fileName: importPreview.fileName, timestamp: getSyncedDate().toISOString() });
+      addToast({
+        type: 'success',
+        title: 'Imported Successfully',
+        message: `${res.count} voters imported with '${strategy}' strategy.`
+      });
       setShowImportPreview(false);
       setImportPreview(null);
     } catch (err) {
@@ -703,7 +730,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                             {isDraft && <button className="btn btn-primary btn-sm" onClick={() => handlePublish(el.id)} style={{ borderRadius: 8, fontWeight: 700 }}>Publish Poll</button>}
                             {isActive && <button className="btn btn-sm" onClick={() => handleClose(el.id)} style={{ borderRadius: 8, fontWeight: 700, background: 'var(--red-50)', color: 'var(--red-600)', border: '1.5px solid var(--red-100)' }}>Close Poll</button>}
-                            {isClosed && new Date(el.endTime) > new Date() && <button className="btn btn-primary btn-sm" onClick={() => handlePublish(el.id)} style={{ borderRadius: 8, fontWeight: 700 }}>Publish Poll</button>}
+                            {isClosed && new Date(el.endTime) > getSyncedDate() && <button className="btn btn-primary btn-sm" onClick={() => handlePublish(el.id)} style={{ borderRadius: 8, fontWeight: 700 }}>Publish Poll</button>}
                             <button className="btn btn-secondary btn-sm" onClick={() => setEditingElection(el)} style={{ borderRadius: 8 }}>Edit</button>
                           </div>
                         </div>
@@ -1357,8 +1384,8 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             {elections.map(el => {
               const start = new Date(el.startTime);
               const end = new Date(el.endTime);
-              const isPast = end < new Date();
-              const isFuture = start > new Date();
+              const isPast = end < getSyncedDate();
+              const isFuture = start > getSyncedDate();
               const isCurrent = !isPast && !isFuture;
 
               return (
@@ -2026,6 +2053,67 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── IMPORT CONFLICTS MODAL ── */}
+      {conflictResponse && (
+        <ConfirmModal
+          isOpen={!!conflictResponse}
+          onClose={() => setConflictResponse(null)}
+          onConfirm={async () => {
+            await handleImportWithStrategy('add');
+          }}
+          title="Duplicate Voter Records Found"
+          confirmText="Overwrite / Add Voters"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
+            <div style={{ background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 10, padding: '12px 14px', display: 'flex', gap: 8 }}>
+              <AlertTriangle size={18} style={{ color: 'var(--amber-500)', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontWeight: 700, color: 'var(--amber-800)', fontSize: 14 }}>Batch Import Conflict</p>
+                <p style={{ fontSize: 13, color: 'var(--amber-700)', marginTop: 2 }}>
+                  We detected {conflictResponse.conflicts.length} voter record(s) that conflict with existing name, reference ID, email, or telephone number.
+                </p>
+              </div>
+            </div>
+
+            {/* Scrollable conflicts list */}
+            <div style={{ maxHeight: 200, overflowY: 'auto', background: 'var(--navy-50)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
+              {conflictResponse.conflicts.map((c, idx) => (
+                <div key={idx} style={{ padding: '8px 0', borderBottom: idx < conflictResponse.conflicts.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', fontSize: 12.5 }}>
+                  <div style={{ color: 'var(--navy-900)', fontWeight: 700 }}>
+                    {c.user.name} ({c.user.studentId})
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                    <span style={{ fontSize: 11, background: 'var(--red-50)', color: 'var(--red-700)', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>
+                      Reason: {c.reason}
+                    </span>
+                    <span style={{ fontSize: 11, background: 'var(--navy-100)', color: 'var(--navy-700)', padding: '1px 6px', borderRadius: 4 }}>
+                      Existing: {c.existingUser.name} ({c.existingUser.studentId})
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p style={{ fontSize: 13, color: 'var(--navy-500)', lineHeight: 1.5 }}>
+              Choose whether to overwrite/force add these voters, or skip (reject) the duplicate voter entries and import the remaining new records.
+            </p>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ flex: 1, color: 'var(--red-600)', border: '1.5px solid var(--red-100)', background: 'var(--red-50)' }}
+                onClick={async () => {
+                  await handleImportWithStrategy('reject');
+                }}
+              >
+                Reject & Skip Duplicates
+              </button>
+            </div>
+          </div>
+        </ConfirmModal>
       )}
     </div>
   );

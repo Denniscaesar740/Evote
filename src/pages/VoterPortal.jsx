@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useElection } from '../context/ElectionContext';
 import api from '../services/api';
-import { Vote, Clock, CheckCircle, Check, Lock, Shield, ChevronRight, Users, AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, Copy, Loader2 } from 'lucide-react';
+import { getSyncedDate } from '../utils/time';
+import { Vote, Clock, CheckCircle, Check, Lock, Shield, ChevronRight, Users, AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, Copy, Loader2, X } from 'lucide-react';
 import { StatusBadge, CountdownTimer, TrustBadge, ConfirmModal, Confetti } from '../components/SharedUI';
 
 export default function VoterPortal() {
@@ -51,17 +52,28 @@ export default function VoterPortal() {
     setSubmitting(true);
     setStep(2);
     setLoadingStage(0);
+    const apiStartTime = Date.now();
     try {
-      const candidateIds = Object.values(selectedCandidates).map(c => c.id);
+      const candidateIds = Object.values(selectedCandidates)
+        .filter(sel => sel?.choice === 'yes' && sel?.candidate?.id)
+        .map(sel => sel.candidate.id);
       // Real blockchain call — awaited, returns receipt from server
       const result = await castVote(selectedElection.id, candidateIds, user?.departmentId);
+
+      // Force a minimum transition duration of 3600ms so voter sees the stages
+      const elapsed = Date.now() - apiStartTime;
+      const minDuration = 3600;
+      if (elapsed < minDuration) {
+        await new Promise(r => setTimeout(r, minDuration - elapsed));
+      }
+
       markVoted(selectedElection.id);
       const serverReceipt = result?.receipt;
       setReceipt({
         hash: serverReceipt?.hash || '0x???',
         blockIndex: serverReceipt?.blockIndex ?? '?',
         blockHash: serverReceipt?.blockHash || '',
-        timestamp: serverReceipt?.timestamp || new Date().toISOString(),
+        timestamp: serverReceipt?.timestamp || getSyncedDate().toISOString(),
         txId: serverReceipt?.txId || `TX-${Date.now().toString(36).toUpperCase()}`,
         electionTitle: selectedElection.title,
       });
@@ -287,64 +299,52 @@ export default function VoterPortal() {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
-            {categoryCandidates.map((c, i) => {
-              const sel = selectedCandidates[currentCategory]?.id === c.id;
-              return (
-                <div key={c.id} className={`candidate-card animate-fade-in ${sel ? 'selected' : ''}`}
-                  style={{
-                    animationDelay: `${i * 0.05}s`,
-                    position: 'relative',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '28px 20px 24px 20px',
-                    cursor: 'pointer',
-                    borderRadius: 16,
-                    border: `2px solid ${sel ? 'var(--green-600)' : 'var(--border)'}`,
-                    background: sel ? 'linear-gradient(135deg, var(--green-50), #fff)' : 'var(--bg-white)',
-                    boxShadow: sel ? '0 8px 30px rgba(46,125,50,0.08)' : '0 4px 12px rgba(0,0,0,0.02)',
-                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                    minHeight: 290,
-                  }}
-                  onClick={() => setSelectedCandidates(p => ({ ...p, [currentCategory]: c }))} role="radio" aria-checked={sel} tabIndex={0}
-                  onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedCandidates(p => ({ ...p, [currentCategory]: c }))}>
+          {categoryCandidates.length === 1 ? (
+            <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+              {(() => {
+                const c = categoryCandidates[0];
+                const currentSelection = selectedCandidates[currentCategory];
+                const isYes = currentSelection?.choice === 'yes';
+                const isNo = currentSelection?.choice === 'no';
 
-                  {/* Radio Select Badge */}
-                  <div style={{
-                    position: 'absolute',
-                    top: 14,
-                    right: 14,
-                    width: 22,
-                    height: 22,
-                    borderRadius: '50%',
-                    border: `2px solid ${sel ? 'var(--green-600)' : 'var(--navy-200)'}`,
-                    background: sel ? 'var(--green-600)' : 'transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'all 0.2s',
-                    zIndex: 10
-                  }}>
-                    {sel && <Check size={14} color="#fff" />}
-                  </div>
+                return (
+                  <div
+                    className="candidate-card unopposed-card"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      padding: '32px 24px',
+                      borderRadius: 20,
+                      border: '2px dashed var(--navy-200)',
+                      background: 'var(--bg-white)',
+                      boxShadow: '0 8px 30px rgba(0,0,0,0.02)',
+                      width: '100%',
+                      maxWidth: 420,
+                      textAlign: 'center'
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent-500)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>
+                      Unopposed Position
+                    </span>
 
-                  {/* Candidate Image/Avatar */}
-                  <div style={{ width: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                    {c.picture ? (
-                      <img src={api.getUrl(c.picture)} alt={c.name} style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
-                    ) : (
-                      <div style={{ width: 120, height: 120, borderRadius: '50%', background: `linear-gradient(135deg, ${c.color || 'var(--green-600)'}, ${c.color || 'var(--green-600)'}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 32, border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
-                        {c.name.split(' ').map(n => n[0]).join('')}
-                      </div>
-                    )}
-                  </div>
+                    {/* Candidate Image/Avatar */}
+                    <div style={{ width: 120, height: 120, borderRadius: '50%', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {c.picture ? (
+                        <img src={api.getUrl(c.picture)} alt={c.name} style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      ) : (
+                        <div style={{ width: 120, height: 120, borderRadius: '50%', background: `linear-gradient(135deg, ${c.color || 'var(--green-600)'}, ${c.color || 'var(--green-600)'}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 32, border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+                          {c.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Candidate Details */}
-                  <div style={{ textAlign: 'center', width: '100%', marginTop: 12 }}>
-                    <div style={{ fontWeight: 850, fontSize: '15px', color: 'var(--navy-900)', lineHeight: 1.3, wordBreak: 'break-word' }}>{c.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--navy-400)', marginTop: 4, wordBreak: 'break-word' }}>{c.department}</div>
+                    <div style={{ fontWeight: 850, fontSize: '17px', color: 'var(--navy-900)', lineHeight: 1.3 }}>
+                      {c.name}
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--navy-400)', marginTop: 4 }}>
+                      {c.department}
+                    </div>
                     <div style={{
                       background: 'var(--green-50)',
                       color: 'var(--green-800)',
@@ -354,12 +354,139 @@ export default function VoterPortal() {
                       fontWeight: 700,
                       marginTop: 8,
                       display: 'inline-block'
-                    }}>{c.position}</div>
+                    }}>
+                      {c.position}
+                    </div>
+
+                    <p style={{ fontSize: 13, color: 'var(--navy-500)', marginTop: 20, marginBottom: 20, lineHeight: 1.5 }}>
+                      Do you vote <strong>YES</strong> to support this candidate, or <strong>NO</strong> to reject them?
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, width: '100%' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))}
+                        style={{
+                          padding: '12px 18px',
+                          borderRadius: 12,
+                          border: `2px solid ${isYes ? 'var(--green-600)' : 'var(--gray-200)'}`,
+                          background: isYes ? 'var(--green-600)' : 'var(--white)',
+                          color: isYes ? '#fff' : 'var(--navy-700)',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          transition: 'all 0.2s',
+                          boxShadow: isYes ? '0 4px 12px rgba(46,125,50,0.15)' : 'none'
+                        }}
+                      >
+                        <CheckCircle size={16} /> Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'no', candidate: c } }))}
+                        style={{
+                          padding: '12px 18px',
+                          borderRadius: 12,
+                          border: `2px solid ${isNo ? 'var(--red-600)' : 'var(--gray-200)'}`,
+                          background: isNo ? 'var(--red-600)' : 'var(--white)',
+                          color: isNo ? '#fff' : 'var(--navy-700)',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          transition: 'all 0.2s',
+                          boxShadow: isNo ? '0 4px 12px rgba(220,38,38,0.15)' : 'none'
+                        }}
+                      >
+                        <X size={16} style={{ width: 16, height: 16 }} /> No
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
+              {categoryCandidates.map((c, i) => {
+                const sel = selectedCandidates[currentCategory]?.candidate?.id === c.id;
+                return (
+                  <div key={c.id} className={`candidate-card animate-fade-in ${sel ? 'selected' : ''}`}
+                    style={{
+                      animationDelay: `${i * 0.05}s`,
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '28px 20px 24px 20px',
+                      cursor: 'pointer',
+                      borderRadius: 16,
+                      border: `2px solid ${sel ? 'var(--green-600)' : 'var(--border)'}`,
+                      background: sel ? 'linear-gradient(135deg, var(--green-50), #fff)' : 'var(--bg-white)',
+                      boxShadow: sel ? '0 8px 30px rgba(46,125,50,0.08)' : '0 4px 12px rgba(0,0,0,0.02)',
+                      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                      minHeight: 290,
+                    }}
+                    onClick={() => setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))} role="radio" aria-checked={sel} tabIndex={0}
+                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))}>
+
+                    {/* Radio Select Badge */}
+                    <div style={{
+                      position: 'absolute',
+                      top: 14,
+                      right: 14,
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      border: `2px solid ${sel ? 'var(--green-600)' : 'var(--navy-200)'}`,
+                      background: sel ? 'var(--green-600)' : 'transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s',
+                      zIndex: 10
+                    }}>
+                      {sel && <Check size={14} color="#fff" />}
+                    </div>
+
+                    {/* Candidate Image/Avatar */}
+                    <div style={{ width: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                      {c.picture ? (
+                        <img src={api.getUrl(c.picture)} alt={c.name} style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      ) : (
+                        <div style={{ width: 120, height: 120, borderRadius: '50%', background: `linear-gradient(135deg, ${c.color || 'var(--green-600)'}, ${c.color || 'var(--green-600)'}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 32, border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+                          {c.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Candidate Details */}
+                    <div style={{ textAlign: 'center', width: '100%', marginTop: 12 }}>
+                      <div style={{ fontWeight: 850, fontSize: '15px', color: 'var(--navy-900)', lineHeight: 1.3, wordBreak: 'word-wrap' }}>{c.name}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--navy-400)', marginTop: 4, wordBreak: 'word-wrap' }}>{c.department}</div>
+                      <div style={{
+                        background: 'var(--green-50)',
+                        color: 'var(--green-800)',
+                        padding: '3px 12px',
+                        borderRadius: 99,
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        marginTop: 8,
+                        display: 'inline-block'
+                      }}>{c.position}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -426,17 +553,30 @@ export default function VoterPortal() {
             <div style={{ background: 'var(--navy-50)', borderRadius: 12, padding: '14px 16px' }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Your Selections</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {Object.entries(selectedCandidates).map(([category, candidate]) => (
+                {Object.entries(selectedCandidates).map(([category, selection]) => (
                   <div key={category} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--navy-900)' }}>{candidate.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--accent-500)', fontWeight: 700 }}>{category}</div>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--navy-900)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {selection.candidate.name}
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 800,
+                          background: selection.choice === 'no' ? 'var(--red-100)' : 'var(--green-100)',
+                          color: selection.choice === 'no' ? 'var(--red-700)' : 'var(--green-700)',
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          textTransform: 'uppercase'
+                        }}>
+                          {selection.choice === 'no' ? 'NO' : 'YES'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--accent-500)', fontWeight: 705 }}>{category}</div>
                     </div>
-                    {candidate.picture ? (
-                      <img src={api.getUrl(candidate.picture)} alt={candidate.name} style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover' }} />
+                    {selection.candidate.picture ? (
+                      <img src={api.getUrl(selection.candidate.picture)} alt={selection.candidate.name} style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover' }} />
                     ) : (
-                      <div style={{ width: 34, height: 34, borderRadius: 6, background: candidate.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 12 }}>
-                        {candidate.name.split(' ').map(n => n[0]).join('')}
+                      <div style={{ width: 34, height: 34, borderRadius: 6, background: selection.candidate.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 12 }}>
+                        {selection.candidate.name.split(' ').map(n => n[0]).join('')}
                       </div>
                     )}
                   </div>

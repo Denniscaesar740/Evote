@@ -11,6 +11,7 @@ import ProfilePage from './pages/ProfilePage';
 import DepartmentsPage from './pages/DepartmentsPage';
 import { ToastContainer, SessionWarningModal } from './components/SharedUI';
 import acsesLogo from './ACSES.jpg';
+import { syncServerTime } from './utils/time';
 
 function MainApp() {
   const { isAuthenticated, user, sessionWarning, extendSession, logout, isInitializing } = useAuth();
@@ -19,6 +20,12 @@ function MainApp() {
   const [currentPage, setCurrentPage] = useState(() => {
     return localStorage.getItem('currentPage') || 'dashboard';
   });
+
+  useEffect(() => {
+    syncServerTime();
+    const interval = setInterval(syncServerTime, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!isInitializing && isAuthenticated) {

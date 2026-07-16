@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle, AlertTriangle, Info, X, AlertOctagon, Loader2, Shield, Lock } from 'lucide-react';
+import { getSyncedDate } from '../utils/time';
 
 /* ── TOAST CONTAINER ── */
 export function ToastContainer({ toasts, onRemove }) {
@@ -12,9 +13,9 @@ export function ToastContainer({ toasts, onRemove }) {
 function Toast({ toast, onRemove }) {
   const icons = {
     success: <CheckCircle size={16} style={{ color: 'var(--green-500)', flexShrink: 0 }} />,
-    error:   <AlertOctagon size={16} style={{ color: 'var(--red-500)', flexShrink: 0 }} />,
+    error: <AlertOctagon size={16} style={{ color: 'var(--red-500)', flexShrink: 0 }} />,
     warning: <AlertTriangle size={16} style={{ color: 'var(--gold-500)', flexShrink: 0 }} />,
-    info:    <Info size={16} style={{ color: 'var(--green-400)', flexShrink: 0 }} />,
+    info: <Info size={16} style={{ color: 'var(--green-400)', flexShrink: 0 }} />,
   };
   return (
     <div className={`toast toast-${toast.type || 'info'}`} role="alert">
@@ -86,14 +87,14 @@ export function LoadingSpinner({ size = 'md', text }) {
 
 /* ── STAT CARD ── */
 const STAT_BG = {
-  green:  { icon: 'var(--green-500)', bg: 'var(--green-50)',  border: 'var(--green-100)' },
-  gold:   { icon: 'var(--gold-500)',  bg: 'var(--gold-50)',   border: 'var(--gold-100)' },
-  red:    { icon: 'var(--red-500)',   bg: 'var(--red-50)',    border: 'var(--red-100)' },
-  gray:   { icon: 'var(--gray-500)', bg: 'var(--gray-100)',  border: 'var(--gray-200)' },
+  green: { icon: 'var(--green-500)', bg: 'var(--green-50)', border: 'var(--green-100)' },
+  gold: { icon: 'var(--gold-500)', bg: 'var(--gold-50)', border: 'var(--gold-100)' },
+  red: { icon: 'var(--red-500)', bg: 'var(--red-50)', border: 'var(--red-100)' },
+  gray: { icon: 'var(--gray-500)', bg: 'var(--gray-100)', border: 'var(--gray-200)' },
   accent: { icon: 'var(--green-600)', bg: 'var(--green-50)', border: 'var(--green-100)' },
   // keep old names mapping
-  emerald:{ icon: 'var(--green-500)', bg: 'var(--green-50)', border: 'var(--green-100)' },
-  amber:  { icon: 'var(--gold-500)',  bg: 'var(--gold-50)',  border: 'var(--gold-100)' },
+  emerald: { icon: 'var(--green-500)', bg: 'var(--green-50)', border: 'var(--green-100)' },
+  amber: { icon: 'var(--gold-500)', bg: 'var(--gold-50)', border: 'var(--gold-100)' },
   purple: { icon: 'var(--green-600)', bg: 'var(--green-50)', border: 'var(--green-100)' },
 };
 export function StatCard({ icon: Icon, label, value, trend, color = 'green' }) {
@@ -105,10 +106,12 @@ export function StatCard({ icon: Icon, label, value, trend, color = 'green' }) {
           <Icon size={18} style={{ color: c.icon }} />
         </div>
         {trend !== undefined && (
-          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 5,
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 5,
             background: trend >= 0 ? 'var(--green-50)' : 'var(--red-50)',
             color: trend >= 0 ? 'var(--green-700)' : 'var(--red-600)',
-            border: `1px solid ${trend >= 0 ? 'var(--green-100)' : 'var(--red-100)'}` }}>
+            border: `1px solid ${trend >= 0 ? 'var(--green-100)' : 'var(--red-100)'}`
+          }}>
             {trend >= 0 ? '+' : ''}{trend}%
           </span>
         )}
@@ -145,9 +148,9 @@ export function EmptyState({ icon: Icon, title, description, actionLabel, onActi
 /* ── TRUST BADGE ── */
 export function TrustBadge({ type = 'secure' }) {
   const cfg = {
-    secure:   { icon: Lock,   text: 'Encrypted',     cls: 'trust-badge-secure'   },
-    verified: { icon: Shield, text: 'Auditable',      cls: 'trust-badge-verified' },
-    locked:   { icon: Lock,   text: 'Results Locked', cls: 'trust-badge-locked'   },
+    secure: { icon: Lock, text: 'Encrypted', cls: 'trust-badge-secure' },
+    verified: { icon: Shield, text: 'Auditable', cls: 'trust-badge-verified' },
+    locked: { icon: Lock, text: 'Results Locked', cls: 'trust-badge-locked' },
   };
   const { icon: Icon, text, cls } = cfg[type] || cfg.secure;
   return <span className={`trust-badge ${cls}`}><Icon size={11} /> {text}</span>;
@@ -156,9 +159,9 @@ export function TrustBadge({ type = 'secure' }) {
 /* ── COUNTDOWN TIMER ── */
 export function CountdownTimer({ endTime }) {
   const calc = () => {
-    const d = new Date(endTime) - new Date();
+    const d = new Date(endTime) - getSyncedDate();
     if (d <= 0) return { expired: true };
-    return { days: Math.floor(d/86400000), hours: Math.floor((d/3600000)%24), minutes: Math.floor((d/60000)%60), seconds: Math.floor((d/1000)%60), expired: false };
+    return { days: Math.floor(d / 86400000), hours: Math.floor((d / 3600000) % 24), minutes: Math.floor((d / 60000) % 60), seconds: Math.floor((d / 1000) % 60), expired: false };
   };
   const [t, setT] = useState(calc);
   useEffect(() => { const id = setInterval(() => setT(calc()), 1000); return () => clearInterval(id); }, [endTime]);
@@ -167,7 +170,7 @@ export function CountdownTimer({ endTime }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
       {[{ v: t.days, l: 'd' }, { v: t.hours, l: 'h' }, { v: t.minutes, l: 'm' }, { v: t.seconds, l: 's' }].map(({ v, l }) => (
         <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <span className="countdown-segment">{String(v).padStart(2,'0')}</span>
+          <span className="countdown-segment">{String(v).padStart(2, '0')}</span>
           <span style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 600 }}>{l}</span>
         </div>
       ))}
@@ -189,7 +192,7 @@ export function SearchInput({ value, onChange, placeholder = 'Search...' }) {
 
 /* ── CONFETTI ── */
 export function Confetti() {
-  const colors = ['#2e7d32','#f59e0b','#ffffff','#43a047','#fbbf24','#1a4a1c'];
+  const colors = ['#2e7d32', '#f59e0b', '#ffffff', '#43a047', '#fbbf24', '#1a4a1c'];
   const pieces = Array.from({ length: 50 }, (_, i) => ({
     id: i, left: Math.random() * 100, delay: Math.random() * 2,
     color: colors[i % colors.length], size: Math.random() * 8 + 4,

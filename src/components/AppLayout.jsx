@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useElection } from '../context/ElectionContext';
+import { getSyncedDate } from '../utils/time';
 import acsesLogo from '../ACSES.jpg';
 import {
   Vote, LayoutDashboard, Users, BarChart3, LogOut, Menu, X,
@@ -43,7 +44,7 @@ const roleLabels = {
 
 function formatRelativeTime(isoString) {
   if (!isoString) return '';
-  const now = new Date();
+  const now = getSyncedDate();
   const past = new Date(isoString);
   const diffMs = now - past;
   const diffSec = Math.floor(diffMs / 1000);

@@ -68,6 +68,7 @@ class ApiService {
       const error = new Error(data?.error || `Request failed with status ${res.status}`);
       error.status = res.status;
       error.code = data?.code;
+      error.data = data;
       throw error;
     }
 
@@ -77,8 +78,8 @@ class ApiService {
   // ── Auth ──
   async login(studentId, password) {
     const data = await this.request('/auth/login', {
-      method: 'POST',
       body: { studentId, password },
+      method: 'POST',
     });
     this.setToken(data.token);
     return data;
@@ -208,8 +209,8 @@ class ApiService {
     return this.request(`/users/${id}`, { method: 'DELETE' });
   }
 
-  async importUsers(users) {
-    return this.request('/users/import', { method: 'POST', body: { users } });
+  async importUsers(users, resolveStrategy) {
+    return this.request('/users/import', { method: 'POST', body: { users, resolveStrategy } });
   }
 
   async clearVoterRegistry(year, password) {
@@ -275,6 +276,11 @@ class ApiService {
   // ── Cryptographic Health Checks ──
   async runCryptographicHealthChecks() {
     return this.request('/health-checks/all');
+  }
+
+  // ── Server Time ──
+  async getServerTime() {
+    return this.request('/time');
   }
 }
 

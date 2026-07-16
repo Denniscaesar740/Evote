@@ -243,8 +243,8 @@ export function ElectionProvider({ children }) {
     dispatch({ type: 'REMOVE_USER', payload: id });
   }, []);
 
-  const importUsers = useCallback(async (usersList) => {
-    const res = await api.importUsers(usersList);
+  const importUsers = useCallback(async (usersList, resolveStrategy) => {
+    const res = await api.importUsers(usersList, resolveStrategy);
     const users = await api.getUsers();
     dispatch({ type: 'SET_USERS', payload: users });
     return res;

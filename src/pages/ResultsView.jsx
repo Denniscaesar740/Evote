@@ -416,17 +416,23 @@ export default function ResultsView() {
               ) : (
                 electionPositions.map(pos => {
                   const posCands = cands.filter(c => c.position === pos).sort((a, b) => b.voteCount - a.voteCount);
-                  const posTotalVotes = posCands.reduce((sum, c) => sum + c.voteCount, 0);
+                  const isUnopposed = posCands.length === 1;
+                  const posTotalVotes = isUnopposed ? cast : posCands.reduce((sum, c) => sum + c.voteCount, 0);
                   const isClosed = el.status === 'closed';
 
                   const leadingCand = posCands[0];
                   const showWinnerBadge = leadingCand && (isClosed || leadingCand.voteCount > 0);
 
-                  const positionPieData = posCands.map(c => ({
-                    name: c.name,
-                    value: c.voteCount,
-                    color: c.color || '#2e7d32'
-                  }));
+                  const positionPieData = isUnopposed
+                    ? [
+                      { name: 'Yes', value: posCands[0].voteCount, color: posCands[0].color || '#2e7d32' },
+                      { name: 'No', value: Math.max(0, cast - posCands[0].voteCount), color: '#ef4444' }
+                    ]
+                    : posCands.map(c => ({
+                      name: c.name,
+                      value: c.voteCount,
+                      color: c.color || '#2e7d32'
+                    }));
 
                   return (
                     <div
@@ -456,13 +462,44 @@ export default function ResultsView() {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
                         {/* Standings List */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          {posCands.map((c, rank) => {
-                            const percentageShare = posTotalVotes > 0 ? Math.round((c.voteCount / posTotalVotes) * 100) : 0;
-                            const isTop = rank === 0 && showWinnerBadge;
-
+                          {(isUnopposed ? [
+                            {
+                              id: `${posCands[0].id}-yes`,
+                              name: `${posCands[0].name} (YES)`,
+                              dept: posCands[0].department,
+                              votes: posCands[0].voteCount,
+                              share: posTotalVotes > 0 ? Math.round((posCands[0].voteCount / posTotalVotes) * 100) : 0,
+                              avatar: posCands[0].picture,
+                              color: 'var(--green-500)',
+                              label: 'YES Support',
+                              isWinner: isClosed && posCands[0].voteCount >= (cast - posCands[0].voteCount)
+                            },
+                            {
+                              id: `${posCands[0].id}-no`,
+                              name: `${posCands[0].name} (NO)`,
+                              dept: posCands[0].department,
+                              votes: Math.max(0, cast - posCands[0].voteCount),
+                              share: posTotalVotes > 0 ? Math.round((Math.max(0, cast - posCands[0].voteCount) / posTotalVotes) * 100) : 0,
+                              avatar: null,
+                              color: 'var(--red-500)',
+                              label: 'NO Reject',
+                              isWinner: isClosed && (cast - posCands[0].voteCount) > posCands[0].voteCount
+                            }
+                          ] : posCands.map((c, rank) => ({
+                            id: c.id,
+                            name: c.name,
+                            dept: c.department,
+                            votes: c.voteCount,
+                            share: posTotalVotes > 0 ? Math.round((c.voteCount / posTotalVotes) * 100) : 0,
+                            avatar: c.picture,
+                            color: rank === 0 ? 'var(--green-500)' : '#2563eb',
+                            label: rank === 0 ? (isClosed ? 'Winner' : 'Front-Run') : `Rank ${rank + 1}`,
+                            isWinner: rank === 0 && showWinnerBadge
+                          }))).map((item, idx) => {
+                            const isTop = item.isWinner;
                             return (
                               <div
-                                key={c.id}
+                                key={item.id}
                                 style={{
                                   background: isTop ? 'linear-gradient(90deg, #f0fdf4, #ffffff)' : '#fff',
                                   border: `1.5px solid ${isTop ? 'var(--green-300)' : 'var(--gray-200)'}`,
@@ -484,42 +521,42 @@ export default function ResultsView() {
                                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                                       fontWeight: 800, fontSize: 11
                                     }}>
-                                      {rank === 0 ? '🏆' : rank + 1}
+                                      {idx === 0 ? '🏆' : idx + 1}
                                     </div>
 
                                     {/* Avatar preview */}
-                                    {c.picture ? (
-                                      <img src={api.getUrl(c.picture)} alt={c.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--border)' }} />
+                                    {item.avatar ? (
+                                      <img src={api.getUrl(item.avatar)} alt={item.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--border)' }} />
                                     ) : (
-                                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#eaeaea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
-                                        {c.name.split(' ').map(n => n[0]).join('')}
+                                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: item.name.includes('(NO)') ? 'var(--red-100)' : '#eaeaea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: item.name.includes('(NO)') ? 'var(--red-700)' : 'inherit' }}>
+                                        {item.name.includes('(NO)') ? 'X' : item.name.split(' ').map(n => n[0]).join('')}
                                       </div>
                                     )}
 
                                     <div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--text-primary)' }}>{c.name}</span>
-                                        {isTop && (
+                                        <span style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--text-primary)' }}>{item.name}</span>
+                                        {(isTop || isUnopposed) && (
                                           <span style={{
-                                            fontSize: 9, fontWeight: 800, background: isClosed ? 'var(--green-700)' : '#d97706',
-                                            color: '#fff', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase'
+                                            fontSize: 9, fontWeight: 800, background: isTop ? (isClosed ? 'var(--green-700)' : '#d97706') : 'var(--navy-100)',
+                                            color: isTop ? '#fff' : 'var(--navy-750)', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase'
                                           }}>
-                                            {isClosed ? 'Winner' : 'Front-Run'}
+                                            {item.label}
                                           </span>
                                         )}
                                       </div>
-                                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{c.department}</div>
+                                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{item.dept}</div>
                                     </div>
                                   </div>
 
                                   <div style={{ textAlign: 'right' }}>
-                                    <strong style={{ fontSize: 14, color: 'var(--text-primary)' }}>{c.voteCount} votes</strong>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{percentageShare}% share</div>
+                                    <strong style={{ fontSize: 14, color: 'var(--text-primary)' }}>{item.votes} votes</strong>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.share}% share</div>
                                   </div>
                                 </div>
 
                                 <div className="progress-bar-track" style={{ height: 6, background: '#f1f5f9' }}>
-                                  <div className="progress-bar-fill" style={{ width: `${percentageShare}%`, background: isTop ? 'var(--green-500)' : '#2563eb' }} />
+                                  <div className="progress-bar-fill" style={{ width: `${item.share}%`, background: item.color }} />
                                 </div>
                               </div>
                             );
@@ -543,7 +580,7 @@ export default function ResultsView() {
                                     outerRadius={75}
                                     paddingAngle={2}
                                   >
-                                    {positionPieData.map((part, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                                    {positionPieData.map((part, i) => <Cell key={i} fill={part.color || COLORS[i % COLORS.length]} />)}
                                   </Pie>
                                   <Tooltip contentStyle={tooltipStyle} />
                                   <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: 11, fontWeight: 650 }} />
