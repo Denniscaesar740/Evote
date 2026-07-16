@@ -394,14 +394,15 @@ async function start() {
   await connectDB();
   initScheduler();
   app.listen(PORT, () => {
+    const serverUrl = process.env.SERVER_URL || `http://localhost:${PORT}`;
     console.log(`\n╔══════════════════════════════════════════╗`);
     console.log(`║  🗳️  UniVote API Server                  ║`);
     console.log(`║  ACSES UMaT E-Voting System              ║`);
     console.log(`╠══════════════════════════════════════════╣`);
     console.log(`║  Port:     ${PORT}                            ║`);
     console.log(`║  DB:       MongoDB Atlas                  ║`);
-    console.log(`║  API:      http://localhost:${PORT}/api        ║`);
-    console.log(`║  Health:   http://localhost:${PORT}/api/health ║`);
+    console.log(`║  API:      ${serverUrl}/api`);
+    console.log(`║  Health:   ${serverUrl}/api/health`);
     console.log(`╚══════════════════════════════════════════╝\n`);
   });
 }

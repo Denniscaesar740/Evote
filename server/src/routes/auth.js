@@ -158,6 +158,11 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
       if (!emailSent) {
         // Both channels failed — log securely without exposing OTP
         console.error(`❌ Both SMS and email delivery failed for voter ${studentId}. OTP generated but undeliverable.`);
+        console.log(`\n╔══════════════════════════════════════════╗`);
+        console.log(`║  🔑 DEVELOPMENT OTP FALLBACK             ║`);
+        console.log(`║  Voter ID:  ${studentId.padEnd(28)} ║`);
+        console.log(`║  OTP Code:  ${otp.padEnd(28)} ║`);
+        console.log(`╚══════════════════════════════════════════╝\n`);
 
         // Audit log the delivery failure
         await AuditLog.create({

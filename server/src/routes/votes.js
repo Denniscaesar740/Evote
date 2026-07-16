@@ -37,7 +37,7 @@ router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
   try {
     session.startTransaction();
     const { electionId, candidateIds } = req.body;
-    if (!electionId || !candidateIds?.length) return res.status(400).json({ error: 'electionId and candidateIds are required.' });
+    if (!electionId || !Array.isArray(candidateIds)) return res.status(400).json({ error: 'electionId and candidateIds array are required.' });
 
     const election = await Election.findById(electionId).lean();
     if (!election) { await session.abortTransaction(); return res.status(404).json({ error: 'Election not found.' }); }
