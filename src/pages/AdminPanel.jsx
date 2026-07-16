@@ -3,7 +3,7 @@ import { useElection } from '../context/ElectionContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { getSyncedDate } from '../utils/time';
-import { LayoutDashboard, ClipboardList, Users, UserCheck, FileText, PieChart, Plus, Upload, ShieldCheck, ShieldAlert, FileDown, Clock, CheckCircle, Check, Settings, Calendar, UserPlus, Bell, Trash2, FileSpreadsheet, Download, AlertTriangle, Eye, X, Layers } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Users, UserCheck, FileText, PieChart, Plus, Upload, ShieldCheck, ShieldAlert, FileDown, Clock, CheckCircle, Check, Settings, Calendar, UserPlus, Bell, Trash2, FileSpreadsheet, Download, AlertTriangle, Eye, X, Layers, Edit3 } from 'lucide-react';
 import { StatCard, StatusBadge, CountdownTimer, ConfirmModal } from '../components/SharedUI';
 import readXlsxFile from 'read-excel-file/browser';
 
@@ -29,7 +29,7 @@ const ROLE_COLORS = {
 
 export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const { user } = useAuth();
-  const { elections, candidates, auditLogs, departments, createElection, updateElection, addCandidate, deleteCandidate, deleteElectionCategory, addToast, users = [], announcements = [], addUser, updateUser, deleteUser, importUsers, clearVoterRegistry, addAnnouncement, addElectionCategory } = useElection();
+  const { elections, candidates, auditLogs, departments, createElection, updateElection, addCandidate, updateCandidate, deleteCandidate, deleteElectionCategory, addToast, users = [], announcements = [], addUser, updateUser, deleteUser, importUsers, clearVoterRegistry, addAnnouncement, addElectionCategory } = useElection();
   const [tab, setTab] = useState(activeTab);
 
   useEffect(() => {
@@ -56,7 +56,8 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const [newElec, setNewElec] = useState({ title: '', departmentId: '', type: 'Student Representative', startTime: '', endTime: '', description: '', eligibleVoterCount: 100, categories: [] });
 
   // Candidate State
-  const [newCand, setNewCand] = useState({ electionId: '', name: '', position: '', color: '#2e7d32', picture: '', department: '' });
+  const [newCand, setNewCand] = useState({ electionId: '', name: '', position: '', color: '#2e7d32', picture: '', department: '', ballotNumber: '' });
+  const [editingCand, setEditingCand] = useState(null);
   const [candSearch, setCandSearch] = useState('');
   const [candElFilter, setCandElFilter] = useState('all');
   const [candPosFilter, setCandPosFilter] = useState('all');
@@ -242,14 +243,44 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     addToast({ type: 'success', title: 'Closed', message: 'Election has been closed.' });
   };
 
-  const handleAddCand = () => {
+  const handleAddCand = async () => {
     if (!newCand.electionId || !newCand.name || !newCand.position) { addToast({ type: 'error', message: 'Fill all candidate fields.' }); return; }
     const targetEl = elections.find(e => e.id === newCand.electionId);
     const deptName = newCand.department || (targetEl?.departmentId ? (departments.find(d => d.id === targetEl.departmentId)?.name || '') : 'Department of Computing and Data Analytics');
-    addCandidate({ ...newCand, id: `cand-${Date.now()}`, department: deptName, voteCount: 0 });
-    addToast({ type: 'success', title: 'Candidate Registered', message: `${newCand.name} successfully registered.` });
-    setShowCandModal(false);
-    setNewCand({ electionId: '', name: '', position: '', color: '#2e7d32', picture: '', department: '' });
+    try {
+      await addCandidate({ ...newCand, id: `cand-${Date.now()}`, department: deptName, voteCount: 0 });
+      addToast({ type: 'success', title: 'Candidate Registered', message: `${newCand.name} successfully registered.` });
+      setShowCandModal(false);
+      setNewCand({ electionId: '', name: '', position: '', color: '#2e7d32', picture: '', department: '', ballotNumber: '' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Creation Failed', message: err.message || 'Could not register candidate.' });
+    }
+  };
+
+  const handleUpdateCand = async () => {
+    if (!editingCand.electionId || !editingCand.name || !editingCand.position) {
+      addToast({ type: 'error', message: 'Fill all candidate fields.' });
+      return;
+    }
+    const targetEl = elections.find(e => e.id === editingCand.electionId);
+    const deptName = editingCand.department || (targetEl?.departmentId ? (departments.find(d => d.id === targetEl.departmentId)?.name || '') : 'Department of Computing and Data Analytics');
+    try {
+      await updateCandidate(editingCand.id, {
+        name: editingCand.name,
+        electionId: editingCand.electionId,
+        position: editingCand.position,
+        department: deptName,
+        manifesto: editingCand.manifesto || '',
+        color: editingCand.color || '#2e7d32',
+        picture: editingCand.picture,
+        ballotNumber: editingCand.ballotNumber || null
+      });
+      addToast({ type: 'success', title: 'Candidate Updated', message: `${editingCand.name} information updated.` });
+      setShowCandModal(false);
+      setEditingCand(null);
+    } catch (err) {
+      addToast({ type: 'error', title: 'Update Failed', message: err.message || 'Could not update candidate.' });
+    }
   };
 
   const handlePictureChange = (e) => {
@@ -930,6 +961,16 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
           positionGroups[pos].push(c);
         });
 
+        // Sort each position lane by ballotNumber ascending
+        Object.keys(positionGroups).forEach(pos => {
+          positionGroups[pos].sort((a, b) => {
+            const numA = a.ballotNumber ? Number(a.ballotNumber) : Infinity;
+            const numB = b.ballotNumber ? Number(b.ballotNumber) : Infinity;
+            if (numA !== numB) return numA - numB;
+            return a.name.localeCompare(b.name);
+          });
+        });
+
         return (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Header */}
@@ -1033,12 +1074,39 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                             <div className="cand-info">
                               <div className="cand-name">{c.name}</div>
                               <div className="cand-meta">{c.department || 'No department'}</div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                                 <span className="cand-position-tag">{c.position}</span>
+                                {c.ballotNumber && (
+                                  <span className="cand-position-tag" style={{ background: 'var(--green-50)', color: 'var(--green-800)', borderColor: 'var(--green-200)', fontWeight: 700 }}>
+                                    Ballot No. {c.ballotNumber}
+                                  </span>
+                                )}
                                 {el && <span style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 500 }}>{el.title}</span>}
                               </div>
                             </div>
-                            <div className="cand-actions">
+                            <div className="cand-actions" style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                title="Edit Candidate"
+                                onClick={() => {
+                                  setEditingCand({
+                                    id: c.id,
+                                    electionId: c.electionId,
+                                    name: c.name,
+                                    position: c.position,
+                                    manifesto: c.manifesto || '',
+                                    color: c.color || '#2e7d32',
+                                    picture: c.picture || '',
+                                    department: c.department || '',
+                                    ballotNumber: c.ballotNumber || ''
+                                  });
+                                  setShowCandModal(true);
+                                }}
+                                style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--white)', color: 'var(--navy-600)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green-500)'; e.currentTarget.style.color = 'var(--green-600)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--navy-600)'; }}
+                              >
+                                <Edit3 size={14} />
+                              </button>
                               <button
                                 title="Delete Candidate"
                                 onClick={() => {
@@ -1823,90 +1891,117 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
       </ConfirmModal>
 
       {/* Redesigned Add Candidate Drawer */}
-      {showCandModal && (
-        <div className="cand-drawer-overlay animate-fade-in" onClick={() => setShowCandModal(false)}>
-          <div className="cand-drawer animate-slide-in-right" onClick={e => e.stopPropagation()}>
-            <div className="cand-drawer-header">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--navy-900)', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-                  <Users size={20} style={{ color: 'var(--green-600)' }} />
-                  Register Candidate
-                </h3>
-                <button onClick={() => setShowCandModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 4, display: 'flex', alignItems: 'center' }}>
-                  <X size={20} />
-                </button>
-              </div>
-              <p style={{ fontSize: 12.5, color: 'var(--navy-500)', marginTop: 4, marginBottom: 0 }}>
-                Enter the official credentials & details of the candidate for ballot placement.
-              </p>
-            </div>
-
-            <div className="cand-drawer-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {/* Photo & Color Selection Header Block */}
-              <div style={{ display: 'flex', gap: 20, alignItems: 'center', background: 'var(--navy-50)', padding: '16px 20px', borderRadius: 14, border: '1px solid var(--border)' }}>
-                {/* Drag-drop or click Photo block */}
-                <label className={`photo-upload-zone ${newCand.picture ? 'has-photo' : ''}`}>
-                  {newCand.picture ? (
-                    <img src={api.getUrl(newCand.picture)} alt="Preview" />
-                  ) : (
-                    <>
-                      <Upload size={20} style={{ color: 'var(--navy-400)' }} />
-                      <div className="upload-hint">Upload Photo</div>
-                    </>
-                  )}
-                  <input type="file" accept="image/*" onChange={handlePictureChange} style={{ display: 'none' }} />
-                </label>
-
-                <div style={{ flex: 1 }}>
-                  <label className="form-label" style={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ballot Branding color</label>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 6 }}>
-                    <input type="color" value={newCand.color} onChange={e => setNewCand(p => ({ ...p, color: e.target.value }))} style={{ width: 44, height: 40, border: '1.5px solid var(--border-strong)', borderRadius: 8, cursor: 'pointer', padding: 2 }} />
-                    <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--navy-700)' }}>{newCand.color}</span>
-                  </div>
-                  <p style={{ fontSize: 11, color: 'var(--navy-400)', marginTop: 6, marginBottom: 0 }}>This theme color is used in results pages & charts.</p>
+      {showCandModal && (() => {
+        const activeCand = editingCand || newCand;
+        const setActiveProps = (updater) => {
+          if (editingCand) {
+            setEditingCand(updater);
+          } else {
+            setNewCand(updater);
+          }
+        };
+        const handleCancel = () => {
+          setShowCandModal(false);
+          setEditingCand(null);
+        };
+        const handleSave = editingCand ? handleUpdateCand : handleAddCand;
+        return (
+          <div className="cand-drawer-overlay animate-fade-in" onClick={handleCancel}>
+            <div className="cand-drawer animate-slide-in-right" onClick={e => e.stopPropagation()}>
+              <div className="cand-drawer-header">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--navy-900)', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                    <Users size={20} style={{ color: 'var(--green-600)' }} />
+                    {editingCand ? 'Edit Candidate Details' : 'Register Candidate'}
+                  </h3>
+                  <button onClick={handleCancel} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 4, display: 'flex', alignItems: 'center' }}>
+                    <X size={20} />
+                  </button>
                 </div>
+                <p style={{ fontSize: 12.5, color: 'var(--navy-500)', marginTop: 4, marginBottom: 0 }}>
+                  Enter the official credentials & credentials of the candidate for ballot placement.
+                </p>
               </div>
 
-              {/* Form Fields */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {inp('Election Registry *', newCand.electionId, v => setNewCand(p => ({ ...p, electionId: v })), { select: <><option value="">-- Choose target election --</option>{elections.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}</> })}
+              <div className="cand-drawer-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Photo & Color Selection Header Block */}
+                <div style={{ display: 'flex', gap: 20, alignItems: 'center', background: 'var(--navy-50)', padding: '16px 20px', borderRadius: 14, border: '1px solid var(--border)' }}>
+                  {/* Drag-drop or click Photo block */}
+                  <label className={`photo-upload-zone ${activeCand.picture ? 'has-photo' : ''}`}>
+                    {activeCand.picture ? (
+                      <img src={api.getUrl(activeCand.picture)} alt="Preview" />
+                    ) : (
+                      <>
+                        <Upload size={20} style={{ color: 'var(--navy-400)' }} />
+                        <div className="upload-hint">Upload Photo</div>
+                      </>
+                    )}
+                    <input type="file" accept="image/*" onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setActiveProps(p => ({ ...p, picture: reader.result }));
+                      };
+                      reader.readAsDataURL(file);
+                    }} style={{ display: 'none' }} />
+                  </label>
 
-                {inp('Full Candidate Name *', newCand.name, v => setNewCand(p => ({ ...p, name: v })), { placeholder: 'e.g. Samuel Osei Tutu', required: true })}
+                  <div style={{ flex: 1 }}>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ballot Branding color</label>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 6 }}>
+                      <input type="color" value={activeCand.color} onChange={e => setActiveProps(p => ({ ...p, color: e.target.value }))} style={{ width: 44, height: 40, border: '1.5px solid var(--border-strong)', borderRadius: 8, cursor: 'pointer', padding: 2 }} />
+                      <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--navy-700)' }}>{activeCand.color}</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--navy-400)', marginTop: 6, marginBottom: 0 }}>This theme color is used in results pages & charts.</p>
+                  </div>
+                </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  {elections.find(e => e.id === newCand.electionId)?.categories?.length ? (
-                    inp('Position *', newCand.position, v => setNewCand(p => ({ ...p, position: v })), {
+                {/* Form Fields */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {inp('Election Registry *', activeCand.electionId, v => setActiveProps(p => ({ ...p, electionId: v })), { select: <><option value="">-- Choose target election --</option>{elections.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}</> })}
+
+                  {inp('Full Candidate Name *', activeCand.name, v => setActiveProps(p => ({ ...p, name: v })), { placeholder: 'e.g. Samuel Osei Tutu', required: true })}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {elections.find(e => e.id === activeCand.electionId)?.categories?.length ? (
+                      inp('Position *', activeCand.position, v => setActiveProps(p => ({ ...p, position: v })), {
+                        select: (
+                          <>
+                            <option value="">-- Choose position --</option>
+                            {elections.find(e => e.id === activeCand.electionId).categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          </>
+                        )
+                      })
+                    ) : (
+                      inp('Position *', activeCand.position, v => setActiveProps(p => ({ ...p, position: v })), { placeholder: 'e.g. SRC President', required: true })
+                    )}
+
+                    {inp('Department Affiliation', activeCand.department || '', v => setActiveProps(p => ({ ...p, department: v })), {
                       select: (
                         <>
-                          <option value="">-- Choose position --</option>
-                          {elections.find(e => e.id === newCand.electionId).categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          <option value="">-- Select Department --</option>
+                          {departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+                          <option value="Department of Computing and Data Analytics">Dept. of Computing & Data Analytics</option>
                         </>
                       )
-                    })
-                  ) : (
-                    inp('Position *', newCand.position, v => setNewCand(p => ({ ...p, position: v })), { placeholder: 'e.g. SRC President', required: true })
-                  )}
+                    })}
+                  </div>
 
-                  {inp('Department Affiliation', newCand.department || '', v => setNewCand(p => ({ ...p, department: v })), {
-                    select: (
-                      <>
-                        <option value="">-- Select Department --</option>
-                        {departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
-                        <option value="Department of Computing and Data Analytics">Dept. of Computing & Data Analytics</option>
-                      </>
-                    )
-                  })}
+                  {inp('Ballot Order Number (e.g. 1, 2, 3)', activeCand.ballotNumber || '', v => setActiveProps(p => ({ ...p, ballotNumber: v })), { type: 'number', placeholder: 'Set order number on the ballot paper' })}
                 </div>
               </div>
-            </div>
 
-            <div className="cand-drawer-footer">
-              <button className="btn btn-secondary" style={{ flex: 1, borderRadius: 8 }} onClick={() => setShowCandModal(false)}>Cancel</button>
-              <button className="btn btn-primary" style={{ flex: 1, borderRadius: 8, background: 'var(--green-600)', borderColor: 'var(--green-700)' }} onClick={handleAddCand}>Register Ballot Entry</button>
+              <div className="cand-drawer-footer">
+                <button className="btn btn-secondary" style={{ flex: 1, borderRadius: 8 }} onClick={handleCancel}>Cancel</button>
+                <button className="btn btn-primary" style={{ flex: 1, borderRadius: 8, background: 'var(--green-600)', borderColor: 'var(--green-700)' }} onClick={handleSave}>
+                  {editingCand ? 'Save Changes' : 'Register Ballot Entry'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Add User Modal */}
       <ConfirmModal isOpen={showAddUserModal} onClose={() => setShowAddUserModal(false)} onConfirm={handleAddUser} title="Register New User" confirmText="Register User">

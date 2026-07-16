@@ -166,6 +166,10 @@ class ApiService {
     return this.request('/candidates', { method: 'POST', body: data });
   }
 
+  async updateCandidate(id, data) {
+    return this.request(`/candidates/${id}`, { method: 'PATCH', body: data });
+  }
+
   async deleteCandidate(id) {
     return this.request(`/candidates/${id}`, { method: 'DELETE' });
   }

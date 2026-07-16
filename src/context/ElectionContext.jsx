@@ -43,6 +43,8 @@ function electionReducer(state, action) {
       return { ...state, elections: [...state.elections, action.payload] };
     case 'ADD_CANDIDATE':
       return { ...state, candidates: [...state.candidates, action.payload] };
+    case 'UPDATE_CANDIDATE_IN_LIST':
+      return { ...state, candidates: state.candidates.map(c => c.id === action.payload.id ? action.payload : c) };
     case 'REMOVE_CANDIDATE':
       return { ...state, candidates: state.candidates.filter(c => c.id !== action.payload) };
     case 'ADD_USER':
@@ -201,6 +203,12 @@ export function ElectionProvider({ children }) {
     return created;
   }, []);
 
+  const updateCandidate = useCallback(async (candidateId, candidateData) => {
+    const updated = await api.updateCandidate(candidateId, candidateData);
+    dispatch({ type: 'UPDATE_CANDIDATE_IN_LIST', payload: updated });
+    return updated;
+  }, []);
+
   const deleteCandidate = useCallback(async (candidateId) => {
     await api.deleteCandidate(candidateId);
     dispatch({ type: 'REMOVE_CANDIDATE', payload: candidateId });
@@ -305,6 +313,7 @@ export function ElectionProvider({ children }) {
     createElection,
     updateElection,
     addCandidate,
+    updateCandidate,
     deleteCandidate,
     deleteElectionCategory,
     addToast,

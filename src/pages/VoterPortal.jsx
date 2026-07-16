@@ -416,79 +416,107 @@ export default function VoterPortal() {
               })()}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
-              {categoryCandidates.map((c, i) => {
-                const sel = selectedCandidates[currentCategory]?.candidate?.id === c.id;
-                return (
-                  <div key={c.id} className={`candidate-card animate-fade-in ${sel ? 'selected' : ''}`}
-                    style={{
-                      animationDelay: `${i * 0.05}s`,
-                      position: 'relative',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '28px 20px 24px 20px',
-                      cursor: 'pointer',
-                      borderRadius: 16,
-                      border: `2px solid ${sel ? 'var(--green-600)' : 'var(--border)'}`,
-                      background: sel ? 'linear-gradient(135deg, var(--green-50), #fff)' : 'var(--bg-white)',
-                      boxShadow: sel ? '0 8px 30px rgba(46,125,50,0.08)' : '0 4px 12px rgba(0,0,0,0.02)',
-                      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                      minHeight: 290,
-                    }}
-                    onClick={() => setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))} role="radio" aria-checked={sel} tabIndex={0}
-                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))}>
+            (() => {
+              const sortedCandidates = [...categoryCandidates].sort((a, b) => {
+                const numA = a.ballotNumber ? Number(a.ballotNumber) : Infinity;
+                const numB = b.ballotNumber ? Number(b.ballotNumber) : Infinity;
+                if (numA !== numB) return numA - numB;
+                return a.name.localeCompare(b.name);
+              });
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
+                  {sortedCandidates.map((c, i) => {
+                    const sel = selectedCandidates[currentCategory]?.candidate?.id === c.id;
+                    return (
+                      <div key={c.id} className={`candidate-card animate-fade-in ${sel ? 'selected' : ''}`}
+                        style={{
+                          animationDelay: `${i * 0.05}s`,
+                          position: 'relative',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '28px 20px 24px 20px',
+                          cursor: 'pointer',
+                          borderRadius: 16,
+                          border: `2px solid ${sel ? 'var(--green-600)' : 'var(--border)'}`,
+                          background: sel ? 'linear-gradient(135deg, var(--green-50), #fff)' : 'var(--bg-white)',
+                          boxShadow: sel ? '0 8px 30px rgba(46,125,50,0.08)' : '0 4px 12px rgba(0,0,0,0.02)',
+                          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                          minHeight: 290,
+                        }}
+                        onClick={() => setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))} role="radio" aria-checked={sel} tabIndex={0}
+                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))}>
 
-                    {/* Radio Select Badge */}
-                    <div style={{
-                      position: 'absolute',
-                      top: 14,
-                      right: 14,
-                      width: 22,
-                      height: 22,
-                      borderRadius: '50%',
-                      border: `2px solid ${sel ? 'var(--green-600)' : 'var(--navy-200)'}`,
-                      background: sel ? 'var(--green-600)' : 'transparent',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s',
-                      zIndex: 10
-                    }}>
-                      {sel && <Check size={14} color="#fff" />}
-                    </div>
+                        {/* Ballot Number Badge */}
+                        {c.ballotNumber && (
+                          <div style={{
+                            position: 'absolute',
+                            top: 14,
+                            left: 14,
+                            background: 'var(--green-600)',
+                            color: '#fff',
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: 20,
+                            boxShadow: '0 2px 6px rgba(46,125,50,0.2)'
+                          }}>
+                            No. {c.ballotNumber}
+                          </div>
+                        )}
 
-                    {/* Candidate Image/Avatar */}
-                    <div style={{ width: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                      {c.picture ? (
-                        <img src={api.getUrl(c.picture)} alt={c.name} style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
-                      ) : (
-                        <div style={{ width: 120, height: 120, borderRadius: '50%', background: `linear-gradient(135deg, ${c.color || 'var(--green-600)'}, ${c.color || 'var(--green-600)'}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 32, border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
-                          {c.name.split(' ').map(n => n[0]).join('')}
+                        {/* Radio Select Badge */}
+                        <div style={{
+                          position: 'absolute',
+                          top: 14,
+                          right: 14,
+                          width: 22,
+                          height: 22,
+                          borderRadius: '50%',
+                          border: `2px solid ${sel ? 'var(--green-600)' : 'var(--navy-200)'}`,
+                          background: sel ? 'var(--green-600)' : 'transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.2s',
+                          zIndex: 10
+                        }}>
+                          {sel && <Check size={14} color="#fff" />}
                         </div>
-                      )}
-                    </div>
 
-                    {/* Candidate Details */}
-                    <div style={{ textAlign: 'center', width: '100%', marginTop: 12 }}>
-                      <div style={{ fontWeight: 850, fontSize: '15px', color: 'var(--navy-900)', lineHeight: 1.3, wordBreak: 'word-wrap' }}>{c.name}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--navy-400)', marginTop: 4, wordBreak: 'word-wrap' }}>{c.department}</div>
-                      <div style={{
-                        background: 'var(--green-50)',
-                        color: 'var(--green-800)',
-                        padding: '3px 12px',
-                        borderRadius: 99,
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        marginTop: 8,
-                        display: 'inline-block'
-                      }}>{c.position}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        {/* Candidate Image/Avatar */}
+                        <div style={{ width: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                          {c.picture ? (
+                            <img src={api.getUrl(c.picture)} alt={c.name} style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                          ) : (
+                            <div style={{ width: 120, height: 120, borderRadius: '50%', background: `linear-gradient(135deg, ${c.color || 'var(--green-600)'}, ${c.color || 'var(--green-600)'}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 32, border: '3px solid var(--white)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+                              {c.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Candidate Details */}
+                        <div style={{ textAlign: 'center', width: '100%', marginTop: 12 }}>
+                          <div style={{ fontWeight: 850, fontSize: '15px', color: 'var(--navy-900)', lineHeight: 1.3, wordBreak: 'word-wrap' }}>{c.name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--navy-400)', marginTop: 4, wordBreak: 'word-wrap' }}>{c.department}</div>
+                          <div style={{
+                            background: 'var(--green-50)',
+                            color: 'var(--green-800)',
+                            padding: '3px 12px',
+                            borderRadius: 99,
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            marginTop: 8,
+                            display: 'inline-block'
+                          }}>{c.position}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
           )}
         </div>
       )}
