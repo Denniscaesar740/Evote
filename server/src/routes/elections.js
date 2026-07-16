@@ -124,13 +124,19 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res) => {
     let resolvedStatus = status !== undefined ? status : election.status;
     const now = new Date();
 
-    if (resolvedStatus === 'scheduled' && targetStartTime <= now && targetEndTime > now) {
-      const candCount = await Candidate.countDocuments({ election_id: req.params.id });
-      if (candCount > 0) {
-        resolvedStatus = 'active';
+    if (resolvedStatus === 'active' || resolvedStatus === 'scheduled') {
+      if (targetStartTime > now) {
+        resolvedStatus = 'scheduled';
+      } else if (targetEndTime <= now) {
+        resolvedStatus = 'closed';
+      } else {
+        const candCount = await Candidate.countDocuments({ election_id: req.params.id });
+        if (candCount > 0) {
+          resolvedStatus = 'active';
+        } else {
+          resolvedStatus = 'scheduled';
+        }
       }
-    } else if (resolvedStatus === 'active' && targetEndTime <= now) {
-      resolvedStatus = 'closed';
     }
 
     if (resolvedStatus === 'active') {

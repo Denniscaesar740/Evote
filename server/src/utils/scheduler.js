@@ -13,40 +13,50 @@ import AuditLog from '../models/AuditLog.js';
 export async function autoStartElections() {
     try {
         const now = new Date();
-        // Find elections that are scheduled
-        const scheduledElections = await Election.find({ status: 'scheduled' });
+        // Reconcile elections in active or scheduled status
+        const elections = await Election.find({ status: { $in: ['active', 'scheduled'] } });
 
-        for (const election of scheduledElections) {
+        for (const election of elections) {
             const startTime = new Date(election.start_time);
             const endTime = new Date(election.end_time);
 
-            // If start time is reached/passed and end time is inside future
-            if (!isNaN(startTime.getTime()) && startTime <= now && (isNaN(endTime.getTime()) || endTime > now)) {
-                // Ensure the election has candidates before starting it
-                const candCount = await Candidate.countDocuments({ election_id: election._id });
-                if (candCount > 0) {
-                    await Election.updateOne(
-                        { _id: election._id },
-                        { $set: { status: 'active' } }
-                    );
+            if (!isNaN(startTime.getTime()) && startTime > now) {
+                // If it is currently active but starts in the future, reschedule it
+                if (election.status === 'active') {
+                    await Election.updateOne({ _id: election._id }, { $set: { status: 'scheduled' } });
+                    console.log(`[Scheduler] ⏰ Election rescheduled dynamically back to scheduled status: "${election.title}"`);
+                }
+            } else if (!isNaN(endTime.getTime()) && endTime <= now) {
+                // Will be resolved by autoCloseElections
+            } else {
+                // start_time <= now < end_time
+                if (election.status === 'scheduled') {
+                    // Ensure the election has candidates before starting it
+                    const candCount = await Candidate.countDocuments({ election_id: election._id });
+                    if (candCount > 0) {
+                        await Election.updateOne(
+                            { _id: election._id },
+                            { $set: { status: 'active' } }
+                        );
 
-                    console.log(`[Scheduler] 🗳️  Automatically activated election: "${election.title}" (ID: ${election._id})`);
+                        console.log(`[Scheduler] 🗳️  Automatically activated election: "${election.title}" (ID: ${election._id})`);
 
-                    await AuditLog.create({
-                        _id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                        action: 'Election Published',
-                        performed_by: 'System Scheduler',
-                        role: 'System',
-                        timestamp: now.toISOString(),
-                        metadata: JSON.stringify({
-                            electionId: election._id,
-                            title: election.title,
-                            reason: 'Automatically started by system scheduler at scheduled start time.',
-                            startTime: election.start_time
-                        })
-                    });
-                } else {
-                    console.log(`[Scheduler] ⚠️  Cannot auto-start scheduled election without candidates: "${election.title}" (ID: ${election._id})`);
+                        await AuditLog.create({
+                            _id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                            action: 'Election Published',
+                            performed_by: 'System Scheduler',
+                            role: 'System',
+                            timestamp: now.toISOString(),
+                            metadata: JSON.stringify({
+                                electionId: election._id,
+                                title: election.title,
+                                reason: 'Automatically started by system scheduler at scheduled start time.',
+                                startTime: election.start_time
+                            })
+                        });
+                    } else {
+                        console.log(`[Scheduler] ⚠️  Cannot auto-start scheduled election without candidates: "${election.title}" (ID: ${election._id})`);
+                    }
                 }
             }
         }
