@@ -122,6 +122,15 @@ class ApiService {
     return data;
   }
 
+  async agentLogin(passcode) {
+    const data = await this.request('/auth/agent/login', {
+      method: 'POST',
+      body: { passcode },
+    });
+    this.setToken(data.token);
+    return data;
+  }
+
   // ── Elections ──
   async getElections() {
     return this.request('/elections');
@@ -181,6 +190,10 @@ class ApiService {
 
   async getTurnoutStats() {
     return this.request('/votes/stats/turnout');
+  }
+
+  async getPublicLiveStats(electionId) {
+    return this.request(`/votes/public-live/${electionId}`);
   }
 
   async getTimelineStats() {

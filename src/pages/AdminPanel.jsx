@@ -1456,6 +1456,41 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             {inp('Session Expiry Timeout (Minutes)', config.sessionTimeout, v => setConfig(p => ({ ...p, sessionTimeout: Number(v) })), { type: 'number' })}
             <button className="btn btn-primary btn-sm" onClick={() => addToast({ type: 'success', title: 'Settings Saved', message: 'System configuration has been successfully updated.' })} style={{ height: 38, marginTop: 4 }}>Save Configuration</button>
           </div>
+
+          <div className="card card-padded" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <h4 style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy-900)', marginBottom: 6 }}>Polling Agent Watcher Portal</h4>
+              <p style={{ fontSize: 11, color: 'var(--navy-400)' }}>Deploy a secure, read-only live results display for candidates' external polling representatives.</p>
+            </div>
+            <div style={{ background: 'var(--green-50)', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--green-100)' }}>
+              <div style={{ fontSize: 11, color: 'var(--green-800)', fontWeight: 700, marginBottom: 2 }}>🔓 Public Read-Only Access Enabled</div>
+              <div style={{ fontSize: 10.5, color: 'var(--green-700)' }}>Agents can scan live standings directly without needing accounts.</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                onClick={() => {
+                  const agentUrl = window.location.origin + '/?view=agent';
+                  navigator.clipboard.writeText(agentUrl);
+                  addToast({ type: 'success', title: 'Link Copied', message: 'Polling agent live link copied to clipboard.' });
+                }}
+              >
+                📋 Copy Portal Link
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ width: '100%', background: 'var(--green-600)', border: '1px solid var(--green-600)', color: '#fff' }}
+                onClick={() => {
+                  window.open('/?view=agent', '_blank');
+                }}
+              >
+                👁️ Launch Telemetry Room
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

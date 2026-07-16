@@ -9,6 +9,7 @@ import AuditorView from './pages/AuditorView';
 import ResultsView from './pages/ResultsView';
 import ProfilePage from './pages/ProfilePage';
 import DepartmentsPage from './pages/DepartmentsPage';
+import AgentView from './pages/AgentView';
 import { ToastContainer, SessionWarningModal } from './components/SharedUI';
 import acsesLogo from './ACSES.jpg';
 import { syncServerTime } from './utils/time';
@@ -40,6 +41,9 @@ function MainApp() {
     }
   }, [isAuthenticated, isInitializing]);
 
+  const isAgentView = window.location.pathname === '/agent' || window.location.search.includes('view=agent');
+  if (isAgentView) return <AgentView />;
+
   if (isInitializing) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-page)', flexDirection: 'column', gap: 20 }}>
@@ -66,7 +70,6 @@ function MainApp() {
 
       case 'admin':
         if (currentPage === 'departments') return <DepartmentsPage />;
-        // All other admin pages are tabs within AdminPanel
         return <AdminPanel activeTab={currentPage} onNavigateTab={setCurrentPage} />;
 
       case 'auditor':
