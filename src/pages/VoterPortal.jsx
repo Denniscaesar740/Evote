@@ -21,9 +21,12 @@ export default function VoterPortal() {
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
   const [loadingStage, setLoadingStage] = useState(0);
 
-  const eligibleElections = elections.filter(e =>
-    e.status !== 'draft' && (!e.departmentId || e.departmentId === user?.departmentId)
-  );
+  const eligibleElections = elections.filter(e => {
+    const statusMatch = e.status !== 'draft';
+    const deptMatch = !e.departmentId || e.departmentId === user?.departmentId;
+    console.debug(`[VoterPortal Filter] ${e.title} (ID: ${e.id}) - Status: ${e.status} (Match: ${statusMatch}), Dept: ${e.departmentId} vs Voter: ${user?.departmentId} (Match: ${deptMatch})`);
+    return statusMatch && deptMatch;
+  });
   const hasVoted = id => user?.hasVoted?.includes(id);
 
   const pickElection = el => {
