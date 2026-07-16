@@ -98,12 +98,16 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     const user = await User.findOne({ student_id: studentId }).lean();
 
-    // To prevent timing attacks, perform a dummy comparison if password_hash is missing
-    const isMock = !user || !user.password_hash;
-    const hashToCompare = isMock ? bcrypt.hashSync('dummy', 10) : user.password_hash;
-    const valid = bcrypt.compareSync(password, hashToCompare);
+    if (!user || user.status === 'suspended') {
+      return res.status(401).json({ error: 'Invalid Student ID or password.' });
+    }
 
-    if (isMock || user.status === 'suspended' || !valid) {
+    if (!user.password_hash) {
+      return res.status(401).json({ error: 'Authentication method not configured.' });
+    }
+
+    const valid = bcrypt.compareSync(password, user.password_hash);
+    if (!valid) {
       return res.status(401).json({ error: 'Invalid Student ID or password.' });
     }
 
@@ -175,11 +179,7 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
       if (!emailSent) {
         // Both channels failed — log securely without exposing OTP
         console.error(`❌ Both SMS and email delivery failed for voter ${studentId}. OTP generated but undeliverable.`);
-        console.log(`\n╔══════════════════════════════════════════╗`);
-        console.log(`║  🔑 DEVELOPMENT OTP FALLBACK             ║`);
-        console.log(`║  Voter ID:  ${studentId.padEnd(28)} ║`);
-        console.log(`║  OTP Code:  ${otp.padEnd(28)} ║`);
-        console.log(`╚══════════════════════════════════════════╝\n`);
+
 
         // Audit log the delivery failure
         await AuditLog.create({
