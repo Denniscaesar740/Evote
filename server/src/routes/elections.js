@@ -119,8 +119,21 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res) => {
 
     const { title, description, status, startTime, endTime, eligibleVoterCount, type } = req.body;
 
-    // If publishing, check for candidates
-    if (status === 'active') {
+    const targetStartTime = new Date(startTime !== undefined ? startTime : election.start_time);
+    const targetEndTime = new Date(endTime !== undefined ? endTime : election.end_time);
+    let resolvedStatus = status !== undefined ? status : election.status;
+    const now = new Date();
+
+    if (resolvedStatus === 'scheduled' && targetStartTime <= now && targetEndTime > now) {
+      const candCount = await Candidate.countDocuments({ election_id: req.params.id });
+      if (candCount > 0) {
+        resolvedStatus = 'active';
+      }
+    } else if (resolvedStatus === 'active' && targetEndTime <= now) {
+      resolvedStatus = 'closed';
+    }
+
+    if (resolvedStatus === 'active') {
       const candCount = await Candidate.countDocuments({ election_id: req.params.id });
       if (candCount === 0) return res.status(400).json({ error: 'Cannot publish election with no candidates.' });
     }
@@ -128,7 +141,7 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res) => {
     const updates = {};
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
-    if (status !== undefined) updates.status = status;
+    updates.status = resolvedStatus;
     if (startTime !== undefined) updates.start_time = startTime;
     if (endTime !== undefined) updates.end_time = endTime;
     if (eligibleVoterCount !== undefined) updates.eligible_voter_count = eligibleVoterCount;
@@ -138,7 +151,7 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res) => {
       await Election.updateOne({ _id: req.params.id }, { $set: updates });
     }
 
-    const actionLabel = status === 'active' ? 'Election Published' : status === 'closed' ? 'Election Closed' : 'Election Updated';
+    const actionLabel = resolvedStatus === 'active' ? 'Election Published' : resolvedStatus === 'closed' ? 'Election Closed' : 'Election Updated';
     await AuditLog.create({
       _id: `log-${Date.now()}`,
       action: actionLabel,

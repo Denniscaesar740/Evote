@@ -375,6 +375,11 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ─── Server Time ───
+app.get('/api/time', (req, res) => {
+  res.json({ serverTime: new Date().toISOString() });
+});
+
 // ─── Global Error Handler ───
 app.use((err, req, res, next) => {
   console.error('❌ Unhandled Error:', err.stack || err.message);
