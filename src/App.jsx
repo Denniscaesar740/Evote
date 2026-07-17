@@ -58,7 +58,8 @@ function MainApp() {
     );
   }
 
-  if (!isAuthenticated) return <LoginPage />;
+  const isOfficerLogin = window.location.pathname === '/officer';
+  if (!isAuthenticated) return <LoginPage isOfficerMode={isOfficerLogin} />;
 
   const renderPage = () => {
     if (currentPage === 'profile') return <ProfilePage />;

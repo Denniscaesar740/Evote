@@ -4,14 +4,14 @@ import { useElection } from '../context/ElectionContext';
 import { Vote, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import acsesLogo from '../ACSES.jpg';
 
-export default function LoginPage() {
+export default function LoginPage({ isOfficerMode }) {
   const { login, requestOtp, loginWithOtp, isLoading, loginError } = useAuth();
   const { addToast } = useElection();
   const [studentId, setStudentId] = useState(() => localStorage.getItem('login_studentId') || '');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
 
-  const [loginMethod, setLoginMethod] = useState(() => localStorage.getItem('login_method') || 'otp'); // 'otp' or 'password'
+  const [loginMethod, setLoginMethod] = useState(() => isOfficerMode ? 'password' : 'otp');
   const [otpStep, setOtpStep] = useState(() => parseInt(localStorage.getItem('login_otpStep') || '1', 10)); // 1 = request, 2 = verify
   const [otpCode, setOtpCode] = useState('');
   const [maskedPhone, setMaskedPhone] = useState(() => localStorage.getItem('login_maskedPhone') || '');
@@ -142,8 +142,12 @@ export default function LoginPage() {
               <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '4px 0 0 0' }}>ACSES-SRID eVoting System</p>
             </div>
 
-            <h2 onDoubleClick={() => { setLoginMethod('password'); setLoginError(''); }} style={{ fontSize: 22, fontWeight: 800, color: 'var(--gray-900)', marginBottom: 4, userSelect: 'none' }}>Sign In</h2>
-            <p style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 24 }}>Use your UMaT Student ID to access the voting portal.</p>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--gray-900)', marginBottom: 4, userSelect: 'none' }}>
+              {isOfficerMode ? 'Administrator Sign In' : 'Sign In'}
+            </h2>
+            <p style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 24 }}>
+              {isOfficerMode ? 'Enter your administrative credentials.' : 'Use your UMaT Student ID to access the voting portal.'}
+            </p>
 
             {loginError && (
               <div style={{ display: 'flex', gap: 9, padding: '11px 14px', background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 7, marginBottom: 18, fontSize: 13, color: 'var(--red-700)', fontWeight: 500 }}>
@@ -279,13 +283,7 @@ export default function LoginPage() {
               </form>
             )}
 
-            {loginMethod === 'otp' ? null : (
-              <div style={{ textAlign: 'center', marginTop: 32, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
-                <button type="button" onClick={() => { setLoginMethod('otp'); setOtpStep(1); setLoginError(''); }} style={{ background: 'none', border: 'none', color: 'var(--gray-500)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.2s' }}>
-                  ← Back to Voter Sign In
-                </button>
-              </div>
-            )}
+
           </div>
         </div>
       </div>

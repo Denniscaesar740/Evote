@@ -107,6 +107,8 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 body {
@@ -116,6 +118,8 @@ body {
   -webkit-font-smoothing: antialiased;
   line-height: 1.55;
   font-size: 15px;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 /* ====================================================
@@ -336,6 +340,7 @@ body {
 
 .main-content {
   flex: 1;
+  min-width: 0;
   margin-left: 260px;
   min-height: 100vh;
   display: flex;
@@ -350,6 +355,7 @@ body {
 .app-main-view {
   padding: 24px 28px;
   flex: 1;
+  min-width: 0;
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
