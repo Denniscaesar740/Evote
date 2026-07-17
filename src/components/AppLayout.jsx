@@ -286,7 +286,7 @@ export default function AppLayout({ currentPage, onNavigate, children }) {
           </div>
         </header>
 
-        <main style={{ padding: '24px 28px', flex: 1, maxWidth: 1280, width: '100%', margin: '0 auto' }}>
+        <main className="app-main-view">
           {children}
         </main>
       </div>

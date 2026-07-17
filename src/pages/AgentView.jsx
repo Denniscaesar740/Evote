@@ -43,7 +43,7 @@ export default function AgentView() {
     useEffect(() => {
         const fetchInitialElections = async () => {
             try {
-                const elecs = await api.getElections();
+                const elecs = await api.getPublicElections();
                 setElections(elecs);
                 if (elecs.length > 0) {
                     const activeOrFirst = elecs.find(e => e.status === 'active') || elecs[0];

@@ -142,7 +142,7 @@ export default function LoginPage() {
               <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '4px 0 0 0' }}>ACSES-SRID eVoting System</p>
             </div>
 
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--gray-900)', marginBottom: 4 }}>Sign In</h2>
+            <h2 onDoubleClick={() => { setLoginMethod('password'); setLoginError(''); }} style={{ fontSize: 22, fontWeight: 800, color: 'var(--gray-900)', marginBottom: 4, userSelect: 'none' }}>Sign In</h2>
             <p style={{ fontSize: 14, color: 'var(--gray-500)', marginBottom: 24 }}>Use your UMaT Student ID to access the voting portal.</p>
 
             {loginError && (
@@ -279,13 +279,7 @@ export default function LoginPage() {
               </form>
             )}
 
-            {loginMethod === 'otp' ? (
-              <div style={{ textAlign: 'center', marginTop: 32, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
-                <button type="button" onClick={() => { setLoginMethod('password'); setLoginError(''); }} style={{ background: 'none', border: 'none', color: 'var(--green-700)', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'color 0.2s' }}>
-                  Sign in as an Electoral Officer →
-                </button>
-              </div>
-            ) : (
+            {loginMethod === 'otp' ? null : (
               <div style={{ textAlign: 'center', marginTop: 32, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
                 <button type="button" onClick={() => { setLoginMethod('otp'); setOtpStep(1); setLoginError(''); }} style={{ background: 'none', border: 'none', color: 'var(--gray-500)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.2s' }}>
                   ← Back to Voter Sign In

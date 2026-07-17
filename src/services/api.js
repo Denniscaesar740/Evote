@@ -136,6 +136,10 @@ class ApiService {
     return this.request('/elections');
   }
 
+  async getPublicElections() {
+    return this.request('/elections/public-active');
+  }
+
   async getElection(id) {
     return this.request(`/elections/${id}`);
   }

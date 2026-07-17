@@ -138,7 +138,7 @@ export default function VoterPortal() {
               role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
               onKeyDown={e => clickable && e.key === 'Enter' && handleSelectElection(el)}>
 
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                     <StatusBadge status={el.status} />
@@ -365,7 +365,7 @@ export default function VoterPortal() {
                       Do you vote <strong>YES</strong> to support this candidate, or <strong>NO</strong> to reject them?
                     </p>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, width: '100%' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, width: '100%', justifyContent: 'center' }}>
                       <button
                         type="button"
                         onClick={() => setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))}
@@ -382,7 +382,7 @@ export default function VoterPortal() {
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 8,
-                          transition: 'all 0.2s',
+                          flex: '1 1 140px',
                           boxShadow: isYes ? '0 4px 12px rgba(46,125,50,0.15)' : 'none'
                         }}
                       >
@@ -404,7 +404,7 @@ export default function VoterPortal() {
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 8,
-                          transition: 'all 0.2s',
+                          flex: '1 1 140px',
                           boxShadow: isNo ? '0 4px 12px rgba(220,38,38,0.15)' : 'none'
                         }}
                       >
@@ -424,7 +424,7 @@ export default function VoterPortal() {
                 return a.name.localeCompare(b.name);
               });
               return (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 250px), 1fr))', gap: 20 }}>
                   {sortedCandidates.map((c, i) => {
                     const sel = selectedCandidates[currentCategory]?.candidate?.id === c.id;
                     return (
@@ -523,9 +523,6 @@ export default function VoterPortal() {
 
       {/* Navigation Controls */}
       <div className="voter-actions-row" style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
         marginTop: 32,
         paddingTop: 20,
         borderTop: '1px solid var(--border)'

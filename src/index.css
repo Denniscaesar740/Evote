@@ -347,6 +347,14 @@ body {
   margin-left: 72px;
 }
 
+.app-main-view {
+  padding: 24px 28px;
+  flex: 1;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+}
+
 .top-bar {
   position: sticky;
   top: 0;
@@ -359,6 +367,30 @@ body {
   align-items: center;
   justify-content: space-between;
 }
+
+@media (max-width: 640px) {
+  .app-main-view {
+    padding: 16px 12px;
+  }
+
+  .top-bar {
+    padding: 0 16px;
+  }
+
+  .election-card {
+    padding: 16px;
+  }
+
+  .card-padded,
+  .stat-card {
+    padding: 16px;
+  }
+
+  .candidate-card {
+    padding: 16px;
+  }
+}
+
 
 /* ====================================================
    NAVIGATION
@@ -1425,7 +1457,34 @@ body {
 /* ====================================================
    ADDITIONAL RESPONSIVE UTILITIES FOR VOTER AND RESULTS PORTALS
    ==================================================== */
+.voter-actions-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 @media (max-width: 640px) {
+  .app-main-view {
+    padding: 16px 12px;
+  }
+
+  .top-bar {
+    padding: 0 16px;
+  }
+
+  .election-card {
+    padding: 16px;
+  }
+
+  .card-padded,
+  .stat-card {
+    padding: 16px;
+  }
+
+  .candidate-card {
+    padding: 16px;
+  }
+
   .step-indicator {
     padding: 10px 12px !important;
     gap: 8px !important;
