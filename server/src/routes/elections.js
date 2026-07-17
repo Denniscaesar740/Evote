@@ -11,26 +11,37 @@ import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = Router();
 
-// Helper: build full election object with categories and rules
-async function buildElection(row) {
-  const categories = (await ElectionCategory.find({ election_id: row._id }).sort('_id').lean()).map(c => c.name);
-  const rules = (await ElectionRule.find({ election_id: row._id }).sort('sort_order').lean()).map(r => r.rule_text);
-  return {
-    id: row._id,
-    title: row.title,
-    description: row.description,
-    departmentId: row.department_id,
-    type: row.type,
-    status: row.status,
-    startTime: row.start_time,
-    endTime: row.end_time,
-    eligibleVoterCount: row.eligible_voter_count,
-    totalVotesCast: row.total_votes_cast,
-    createdBy: row.created_by,
-    secretAlgo: !!row.__secret_algo,
-    categories,
-    rules,
-  };
+// Helper: build full election object with categories and rules (optimized batch loader)
+async function buildElections(rows) {
+  if (!rows || rows.length === 0) return [];
+  const electionIds = rows.map(r => r._id);
+
+  // Batch fetch all categories and rules in just 2 queries total using $in
+  const [allCategories, allRules] = await Promise.all([
+    ElectionCategory.find({ election_id: { $in: electionIds } }).sort('_id').lean(),
+    ElectionRule.find({ election_id: { $in: electionIds } }).sort('sort_order').lean()
+  ]);
+
+  return rows.map(row => {
+    const categories = allCategories.filter(c => String(c.election_id) === String(row._id)).map(c => c.name);
+    const rules = allRules.filter(r => String(r.election_id) === String(row._id)).map(r => r.rule_text);
+    return {
+      id: row._id,
+      title: row.title,
+      description: row.description,
+      departmentId: row.department_id,
+      type: row.type,
+      status: row.status,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      eligibleVoterCount: row.eligible_voter_count,
+      totalVotesCast: row.total_votes_cast,
+      createdBy: row.created_by,
+      secretAlgo: !!row.__secret_algo,
+      categories,
+      rules,
+    };
+  });
 }
 
 // GET /api/elections — list all elections
@@ -41,7 +52,7 @@ router.get('/', authenticate, async (req, res) => {
       filter.status = { $ne: 'draft' };
     }
     const rows = await Election.find(filter).sort({ created_at: -1 }).lean();
-    const elections = await Promise.all(rows.map(buildElection));
+    const elections = await buildElections(rows);
     res.json(elections);
   } catch (err) {
     console.error('Get elections error:', err);
@@ -65,7 +76,8 @@ router.get('/:id', authenticate, async (req, res) => {
   try {
     const row = await Election.findById(req.params.id).lean();
     if (!row) return res.status(404).json({ error: 'Election not found.' });
-    res.json(await buildElection(row));
+    const built = await buildElections([row]);
+    res.json(built[0]);
   } catch (err) {
     console.error('Get election error:', err);
     res.status(500).json({ error: 'Internal server error.' });

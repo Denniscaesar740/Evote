@@ -10,10 +10,12 @@ import { authenticate, authorize } from '../middleware/auth.js';
 const router = Router();
 
 async function runAnomalyDetection() {
-  // 1. Off-Hours Access check
-  const votes = await VoteRecord.find().select('timestamp').lean();
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  const voteLogs = await AuditLog.find({ action: 'Vote Cast' }).lean();
+  // 1. Off-Hours Access check (bound to recent 24h)
+  const votes = await VoteRecord.find({ timestamp: { $gte: oneDayAgo } }).select('timestamp').lean();
+
+  const voteLogs = await AuditLog.find({ action: 'Vote Cast', timestamp: { $gte: oneDayAgo } }).lean();
   const ipMap = {};
   for (const log of voteLogs) {
     try {
@@ -38,8 +40,8 @@ async function runAnomalyDetection() {
     }
   }
 
-  // 2. Rapid Consecutive Writes check
-  const sortedVotes = await VoteRecord.find().sort({ timestamp: 1 }).select('timestamp').lean();
+  // 2. Rapid Consecutive Writes check (bound to recent 24h)
+  const sortedVotes = await VoteRecord.find({ timestamp: { $gte: oneDayAgo } }).sort({ timestamp: 1 }).select('timestamp').lean();
   for (let i = 1; i < sortedVotes.length; i++) {
     const prev = new Date(sortedVotes[i - 1].timestamp).getTime();
     const curr = new Date(sortedVotes[i].timestamp).getTime();
@@ -64,7 +66,8 @@ router.get('/', authenticate, authorize('admin', 'auditor'), async (req, res) =>
 
 // GET /api/audit-logs/anomalies
 router.get('/anomalies', authenticate, authorize('admin', 'auditor'), async (req, res) => {
-  try { await runAnomalyDetection(); } catch (e) { console.error('Anomaly detection failed:', e); }
+  // Fire and forget anomaly scan so it doesn't block the request response
+  runAnomalyDetection().catch(e => console.error('Anomaly detection failed:', e));
   try {
     const rows = await Anomaly.find().sort({ created_at: -1 }).lean();
     res.json(rows.map(r => ({ id: r._id, type: r.type, desc: r.desc, cleared: r.cleared === 1 })));
