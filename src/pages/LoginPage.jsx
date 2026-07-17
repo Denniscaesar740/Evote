@@ -152,24 +152,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Tabs for Login Method */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
-              <button
-                type="button"
-                onClick={() => { setLoginMethod('otp'); setOtpStep(1); }}
-                className={`login-tab-btn ${loginMethod === 'otp' ? 'active' : ''}`}
-              >
-                Voter OTP Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginMethod('password')}
-                className={`login-tab-btn ${loginMethod === 'password' ? 'active' : ''}`}
-              >
-                Officer Sign In
-              </button>
-            </div>
-
             {loginMethod === 'otp' ? (
               otpStep === 1 ? (
                 phoneOptions.length > 0 ? (
@@ -295,6 +277,20 @@ export default function LoginPage() {
                   {isLoading ? <><Loader2 size={15} className="animate-spin" /> Signing in…</> : 'Sign In →'}
                 </button>
               </form>
+            )}
+
+            {loginMethod === 'otp' ? (
+              <div style={{ textAlign: 'center', marginTop: 32, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                <button type="button" onClick={() => { setLoginMethod('password'); setLoginError(''); }} style={{ background: 'none', border: 'none', color: 'var(--green-700)', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'color 0.2s' }}>
+                  Sign in as an Electoral Officer →
+                </button>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', marginTop: 32, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                <button type="button" onClick={() => { setLoginMethod('otp'); setOtpStep(1); setLoginError(''); }} style={{ background: 'none', border: 'none', color: 'var(--gray-500)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.2s' }}>
+                  ← Back to Voter Sign In
+                </button>
+              </div>
             )}
           </div>
         </div>
