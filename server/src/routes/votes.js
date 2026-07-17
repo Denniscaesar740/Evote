@@ -77,58 +77,64 @@ router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
 
   const session = await mongoose.startSession();
   try {
-    session.startTransaction();
+    let statusCode = 200;
+    let resultPayload = null;
 
-    // Re-verify the election status inside the transaction scope
-    const election = await Election.findById(electionId).session(session).lean();
-    if (!election || election.status !== 'active') { await session.abortTransaction(); return res.status(400).json({ error: 'Election validation failed.' }); }
+    // withTransaction securely auto-retries on TransientTransactionError (WriteConflict) up to 120s
+    await session.withTransaction(async () => {
+      // Re-verify the election status inside the transaction scope
+      const election = await Election.findById(electionId).session(session).lean();
+      if (!election || election.status !== 'active') { statusCode = 400; resultPayload = { error: 'Election validation failed.' }; await session.abortTransaction(); return; }
 
-    if (election.department_id && election.department_id !== req.user.department_id) { await session.abortTransaction(); return res.status(403).json({ error: 'Access denied. You are not eligible to vote in this departmental election.' }); }
+      if (election.department_id && election.department_id !== req.user.department_id) { statusCode = 403; resultPayload = { error: 'Access denied. You are not eligible to vote in this departmental election.' }; await session.abortTransaction(); return; }
 
-    const alreadyVoted = await UserVote.findOne({ user_id: req.user.id, election_id: electionId }).session(session).lean();
-    if (alreadyVoted) { await session.abortTransaction(); return res.status(409).json({ error: 'You have already voted in this election.' }); }
+      const alreadyVoted = await UserVote.findOne({ user_id: req.user.id, election_id: electionId }).session(session).lean();
+      if (alreadyVoted) { statusCode = 409; resultPayload = { error: 'You have already voted in this election.' }; await session.abortTransaction(); return; }
 
-    const validCands = await Candidate.find({ _id: { $in: candidateIds }, election_id: electionId }).session(session).lean();
-    if (validCands.length !== candidateIds.length) { await session.abortTransaction(); return res.status(400).json({ error: 'One or more candidate IDs are invalid for this election.' }); }
+      const validCands = await Candidate.find({ _id: { $in: candidateIds }, election_id: electionId }).session(session).lean();
+      if (validCands.length !== candidateIds.length) { statusCode = 400; resultPayload = { error: 'One or more candidate IDs are invalid for this election.' }; await session.abortTransaction(); return; }
 
-    const candidateRows = await Candidate.find({ _id: { $in: candidateIds } }).session(session).select('position').lean();
-    const positions = candidateRows.map(c => c.position);
-    if (new Set(positions).size !== positions.length) { await session.abortTransaction(); return res.status(400).json({ error: 'You may only select one candidate per position.' }); }
+      const candidateRows = await Candidate.find({ _id: { $in: candidateIds } }).session(session).select('position').lean();
+      const positions = candidateRows.map(c => c.position);
+      if (new Set(positions).size !== positions.length) { statusCode = 400; resultPayload = { error: 'You may only select one candidate per position.' }; await session.abortTransaction(); return; }
 
-    const lastBlock = await VoteRecord.findOne({}, null, { session }).sort({ block_index: -1 }).lean();
-    const nextIndex = lastBlock ? lastBlock.block_index + 1 : 0;
-    const prevHash = lastBlock ? lastBlock._id : '0';
-    const timestamp = new Date().toISOString();
-    const { nonce, hash } = mineBlock(nextIndex, timestamp, electionId, candidateIds, prevHash);
-    const voteHash = generateVoteHash();
-    const txId = `TX-${Date.now().toString(36).toUpperCase()}`;
+      const lastBlock = await VoteRecord.findOne({}, null, { session }).sort({ block_index: -1 }).lean();
+      const nextIndex = lastBlock ? lastBlock.block_index + 1 : 0;
+      const prevHash = lastBlock ? lastBlock._id : '0';
+      const timestamp = new Date().toISOString();
+      const { nonce, hash } = mineBlock(nextIndex, timestamp, electionId, candidateIds, prevHash);
+      const voteHash = generateVoteHash();
+      const txId = `TX-${Date.now().toString(36).toUpperCase()}`;
 
-    for (const cId of candidateIds) {
-      await Candidate.updateOne({ _id: cId }, { $inc: { vote_count: 1 } }, { session });
-    }
-    await Election.updateOne({ _id: electionId }, { $inc: { total_votes_cast: 1 } }, { session });
-    await VoteRecord.create([{ _id: hash, block_index: nextIndex, election_id: electionId, candidate_ids: JSON.stringify(candidateIds), vote_hash: voteHash, timestamp, previous_hash: prevHash, nonce }], { session });
-    await UserVote.create([{ user_id: req.user.id, election_id: electionId }], { session });
-    await AuditLog.create([{
-      _id: `log-${Date.now()}`,
-      action: 'Vote Cast',
-      performed_by: 'Anonymous Voter',
-      role: 'Voter',
-      timestamp,
-      metadata: JSON.stringify({
-        electionId,
-        blockIndex: nextIndex,
-        blockHash: hash,
-        clientIp: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown'
-      })
-    }], { session });
+      for (const cId of candidateIds) {
+        await Candidate.updateOne({ _id: cId }, { $inc: { vote_count: 1 } }, { session });
+      }
+      await Election.updateOne({ _id: electionId }, { $inc: { total_votes_cast: 1 } }, { session });
+      await VoteRecord.create([{ _id: hash, block_index: nextIndex, election_id: electionId, candidate_ids: JSON.stringify(candidateIds), vote_hash: voteHash, timestamp, previous_hash: prevHash, nonce }], { session });
+      await UserVote.create([{ user_id: req.user.id, election_id: electionId }], { session });
+      await AuditLog.create([{
+        _id: `log-${Date.now()}`,
+        action: 'Vote Cast',
+        performed_by: 'Anonymous Voter',
+        role: 'Voter',
+        timestamp,
+        metadata: JSON.stringify({
+          electionId,
+          blockIndex: nextIndex,
+          blockHash: hash,
+          clientIp: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown'
+        })
+      }], { session });
 
-    await session.commitTransaction();
-    res.json({ message: 'Vote cast and secured on the blockchain.', receipt: { hash: `0x${voteHash}`, blockIndex: nextIndex, blockHash: hash, timestamp, txId, electionTitle: election.title } });
+      statusCode = 200;
+      resultPayload = { message: 'Vote cast and secured on the blockchain.', receipt: { hash: `0x${voteHash}`, blockIndex: nextIndex, blockHash: hash, timestamp, txId, electionTitle: election.title } };
+    });
+
+    if (resultPayload) return res.status(statusCode).json(resultPayload);
+    res.status(500).json({ error: 'Transaction completed but resulted in empty payload.' });
   } catch (err) {
-    await session.abortTransaction();
-    console.error('Vote cast error:', err);
-    res.status(500).json({ error: 'Internal server error.' });
+    console.error('Vote cast transaction error:', err);
+    res.status(500).json({ error: 'Internal server error during vote secure transaction processing.' });
   } finally { session.endSession(); }
 });
 
