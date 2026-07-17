@@ -342,10 +342,10 @@ export default function VoterPortal() {
                       )}
                     </div>
 
-                    <div style={{ fontWeight: 850, fontSize: '17px', color: 'var(--navy-900)', lineHeight: 1.3 }}>
+                    <div style={{ fontWeight: 850, fontSize: '17px', color: 'var(--navy-900)', lineHeight: 1.3, wordBreak: 'break-word', width: '100%' }}>
                       {c.name}
                     </div>
-                    <div style={{ fontSize: '13px', color: 'var(--navy-400)', marginTop: 4 }}>
+                    <div style={{ fontSize: '13px', color: 'var(--navy-400)', marginTop: 4, wordBreak: 'break-word', width: '100%' }}>
                       {c.department}
                     </div>
                     <div style={{
@@ -444,6 +444,8 @@ export default function VoterPortal() {
                           boxShadow: sel ? '0 8px 30px rgba(46,125,50,0.08)' : '0 4px 12px rgba(0,0,0,0.02)',
                           transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                           minHeight: 290,
+                          minWidth: 0,
+                          overflow: 'hidden'
                         }}
                         onClick={() => setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))} role="radio" aria-checked={sel} tabIndex={0}
                         onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedCandidates(p => ({ ...p, [currentCategory]: { choice: 'yes', candidate: c } }))}>
@@ -498,8 +500,8 @@ export default function VoterPortal() {
 
                         {/* Candidate Details */}
                         <div style={{ textAlign: 'center', width: '100%', marginTop: 12 }}>
-                          <div style={{ fontWeight: 850, fontSize: '15px', color: 'var(--navy-900)', lineHeight: 1.3, wordBreak: 'word-wrap' }}>{c.name}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--navy-400)', marginTop: 4, wordBreak: 'word-wrap' }}>{c.department}</div>
+                          <div style={{ fontWeight: 850, fontSize: '15px', color: 'var(--navy-900)', lineHeight: 1.3, wordBreak: 'break-word', overflowWrap: 'break-word' }}>{c.name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--navy-400)', marginTop: 4, wordBreak: 'break-word', overflowWrap: 'break-word' }}>{c.department}</div>
                           <div style={{
                             background: 'var(--green-50)',
                             color: 'var(--green-800)',
