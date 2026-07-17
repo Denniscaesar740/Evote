@@ -175,7 +175,16 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
       targetPhone = phoneList[0];
     }
 
+    if (user.otp_expires && new Date() < new Date(user.otp_expires)) {
+      const clean = targetPhone.replace(/\D/g, '');
+      const lastFour = clean.slice(-4);
+      const masked = '*'.repeat(Math.max(0, clean.length - 4)) + lastFour;
 
+      genericResponse.message = 'A previously sent verification code is still active. Please check your messages.';
+      genericResponse.phone = masked;
+      genericResponse.title = 'Active Code Exists';
+      return res.json(genericResponse);
+    }
 
     // Generate OTP and set expiry
     const otp = generateOTP();
