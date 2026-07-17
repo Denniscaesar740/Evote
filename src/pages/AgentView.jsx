@@ -282,7 +282,7 @@ export default function AgentView() {
                         {/* Split screen results distribution + live feed status */}
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: '1fr 340px',
+                            gridTemplateColumns: '1fr',
                             gap: 20,
                             alignItems: 'start'
                         }}>
@@ -483,82 +483,6 @@ export default function AgentView() {
                                 )}
                             </div>
 
-                            {/* RIGHT COLUMN: PARTICIPATION INSIGHTS & SCROLLING EVENTS LOG */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, position: 'sticky', top: 16 }}>
-
-                                {/* Department attendance breakdown */}
-                                <div style={{ background: '#fff', border: '1.5px solid rgba(0,0,0,0.06)', borderRadius: 18, padding: 16 }}>
-                                    <span style={{ fontSize: 10, fontWeight: 800, color: '#2e7d32', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Department Metrics</span>
-                                    <h3 style={{ fontSize: 13.5, fontWeight: 900, color: '#0f172a', margin: '2px 0 10px 0' }}>TURNOUT BY STATION</h3>
-
-                                    {turnoutStats.length ? (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                            {turnoutStats.map((d, i) => (
-                                                <div key={d.department} style={{ background: '#fafafa', padding: 8, borderRadius: 8, border: '1px solid #f1f5f9' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
-                                                        <span style={{ fontWeight: 800 }}>{d.department}</span>
-                                                        <span style={{ fontWeight: 900, color: DEPT_COLORS[i % DEPT_COLORS.length] }}>
-                                                            {d.turnout}% <span style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500 }}>({d.voted}/{d.eligible})</span>
-                                                        </span>
-                                                    </div>
-                                                    <div style={{ height: 4, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
-                                                        <div style={{ height: '100%', background: DEPT_COLORS[i % DEPT_COLORS.length], width: `${d.turnout}%` }} />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div style={{ fontSize: 11.5, color: '#64748b', fontStyle: 'italic', textAlign: 'center', py: 12 }}>No turnout feed received.</div>
-                                    )}
-                                </div>
-
-                                {/* Operations Feed Log Console */}
-                                <div style={{
-                                    background: '#fff',
-                                    border: '1.5px solid rgba(0,0,0,0.06)',
-                                    borderRadius: 18,
-                                    padding: 16,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 10
-                                }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <span style={{ fontSize: 10, fontWeight: 800, color: '#2e7d32', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Operations</span>
-                                            <h3 style={{ fontSize: 13.5, fontWeight: 900, color: '#0f172a', margin: '2px 0 0 0' }}>LIVE TICKER LOG</h3>
-                                        </div>
-                                        {liveMode && (
-                                            <span style={{
-                                                background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.25)',
-                                                padding: '2px 8px', borderRadius: 6, fontSize: 8.5, fontWeight: 900, color: '#166534'
-                                            }}>RECEIVING</span>
-                                        )}
-                                    </div>
-
-                                    <div style={{
-                                        background: '#040b06',
-                                        border: '1px solid #14532d',
-                                        borderRadius: 10,
-                                        padding: 12,
-                                        fontFamily: 'monospace',
-                                        fontSize: 10,
-                                        color: '#4ade80',
-                                        height: 240,
-                                        overflowY: 'auto',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: 6
-                                    }}>
-                                        {liveEvents.map((evt, idx) => (
-                                            <div key={evt.id || idx} style={{ borderBottom: '1px solid rgba(74, 222, 128, 0.05)', pb: 4 }}>
-                                                <span style={{ color: '#64748b' }}>[{evt.time}]</span>{' '}
-                                                <span style={{ color: evt.type === 'vote' ? '#fbbf24' : '#4ade80' }}>{evt.msg}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                            </div>
                         </div>
                     </>
                 ) : (
