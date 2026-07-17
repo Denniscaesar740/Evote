@@ -554,7 +554,7 @@ export default function VoterPortal() {
           ) : (
             <button
               className="btn btn-primary"
-              disabled={!allCategoriesSelected}
+              disabled={!allCategoriesSelected || activeCategories.length === 0}
               onClick={() => setConfirmOpen(true)}
               style={{
                 background: 'var(--green-600)',
