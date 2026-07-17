@@ -89,7 +89,7 @@ async function buildAuthResponse(user) {
 }
 
 // POST /api/auth/login — password-based login (admins/auditors)
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { studentId, password } = req.body;
     if (!studentId || !password) {
@@ -120,7 +120,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 });
 
 // POST /api/auth/request-otp — send OTP code to voter's phone
-router.post('/request-otp', otpRequestLimiter, async (req, res) => {
+router.post('/request-otp', async (req, res) => {
   try {
     const { studentId } = req.body;
     if (!studentId) {
@@ -238,8 +238,8 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
   }
 });
 
-// POST /api/auth/verify-otp — verify OTP and login
-router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
+// POST /api/auth/verify-otp
+router.post('/verify-otp', async (req, res) => {
   try {
     const { studentId, otp } = req.body;
     if (!studentId || !otp) {

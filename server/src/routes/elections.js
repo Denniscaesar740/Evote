@@ -197,7 +197,8 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res) => {
     });
 
     const updated = await Election.findById(req.params.id).lean();
-    res.json(await buildElection(updated));
+    const built = await buildElections([updated]);
+    res.json(built[0]);
   } catch (err) {
     console.error('Update election error:', err);
     res.status(500).json({ error: 'Internal server error.' });
@@ -281,7 +282,8 @@ router.delete('/:id/categories/:name', authenticate, authorize('admin'), async (
     });
 
     const updated = await Election.findById(req.params.id).lean();
-    res.json(await buildElection(updated));
+    const built = await buildElections([updated]);
+    res.json(built[0]);
   } catch (err) {
     console.error('Delete category error:', err);
     res.status(500).json({ error: 'Internal server error.' });
