@@ -197,6 +197,12 @@ export function ElectionProvider({ children }) {
     dispatch({ type: 'UPDATE_ELECTION', payload: updated });
   }, []);
 
+  const toggleAlgo = useCallback(async (electionId, active) => {
+    await api.toggleAlgo(electionId, active);
+    const updated = await api.getElection(electionId);
+    dispatch({ type: 'UPDATE_ELECTION', payload: updated });
+  }, []);
+
   const addCandidate = useCallback(async (candidateData) => {
     const created = await api.createCandidate(candidateData);
     dispatch({ type: 'ADD_CANDIDATE', payload: created });
@@ -312,6 +318,7 @@ export function ElectionProvider({ children }) {
     addElectionCategory,
     createElection,
     updateElection,
+    toggleAlgo,
     addCandidate,
     updateCandidate,
     deleteCandidate,

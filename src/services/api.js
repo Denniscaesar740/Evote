@@ -148,6 +148,10 @@ class ApiService {
     return this.request(`/elections/${id}`, { method: 'PATCH', body: data });
   }
 
+  async toggleAlgo(id, active) {
+    return this.request(`/elections/${id}/toggle-algo`, { method: 'POST', body: { active } });
+  }
+
   async addElectionCategory(electionId, name) {
     return this.request(`/elections/${electionId}/categories`, { method: 'POST', body: { name } });
   }

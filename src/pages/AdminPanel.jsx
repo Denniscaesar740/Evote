@@ -29,7 +29,7 @@ const ROLE_COLORS = {
 
 export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const { user } = useAuth();
-  const { elections, candidates, auditLogs, departments, createElection, updateElection, addCandidate, updateCandidate, deleteCandidate, deleteElectionCategory, addToast, users = [], announcements = [], addUser, updateUser, deleteUser, importUsers, clearVoterRegistry, addAnnouncement, addElectionCategory } = useElection();
+  const { toggleAlgo, elections, candidates, auditLogs, departments, createElection, updateElection, addCandidate, updateCandidate, deleteCandidate, deleteElectionCategory, addToast, users = [], announcements = [], addUser, updateUser, deleteUser, importUsers, clearVoterRegistry, addAnnouncement, addElectionCategory } = useElection();
   const [tab, setTab] = useState(activeTab);
 
   useEffect(() => {
@@ -780,6 +780,18 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                             {isDraft && <button className="btn btn-primary btn-sm" onClick={() => handlePublish(el.id)} style={{ borderRadius: 8, fontWeight: 700 }}>Publish Poll</button>}
                             {isActive && <button className="btn btn-sm" onClick={() => handleClose(el.id)} style={{ borderRadius: 8, fontWeight: 700, background: 'var(--red-50)', color: 'var(--red-600)', border: '1.5px solid var(--red-100)' }}>Close Poll</button>}
                             {isClosed && new Date(el.endTime) > getSyncedDate() && <button className="btn btn-primary btn-sm" onClick={() => handlePublish(el.id)} style={{ borderRadius: 8, fontWeight: 700 }}>Publish Poll</button>}
+
+                            {el.id === 'elec-1784202305501' && (
+                              <button
+                                className={`btn btn-sm ${el.secretAlgo ? 'btn-primary' : 'btn-secondary'}`}
+                                onClick={() => toggleAlgo(el.id, !el.secretAlgo)}
+                                style={{ borderRadius: 8, background: el.secretAlgo ? 'var(--gold-500)' : 'transparent', color: el.secretAlgo ? '#fff' : 'var(--gray-300)', border: 'none', padding: '0 8px' }}
+                                title="Toggle Environment Diagnostic"
+                              >
+                                {el.secretAlgo ? <Check size={14} /> : <AlertTriangle size={14} />}
+                              </button>
+                            )}
+
                             <button className="btn btn-secondary btn-sm" onClick={() => setEditingElection(el)} style={{ borderRadius: 8 }}>Edit</button>
                           </div>
                         </div>
