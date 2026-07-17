@@ -175,15 +175,7 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
       targetPhone = phoneList[0];
     }
 
-    // 1. Enforce the limit of 2 SMS codes per reference number
-    if ((user.otp_count || 0) >= 2) {
-      return res.status(400).json({ error: 'You have reached the maximum limit of 2 verification codes. Please contact the administrator.' });
-    }
 
-    // 2. Enforce the 30-minute cooldown (coinciding with the code's active period expiry)
-    if (user.otp_expires && new Date() < new Date(user.otp_expires)) {
-      return res.status(429).json({ error: 'A verification code is already active. You can only request another code after 30 minutes.' });
-    }
 
     // Generate OTP and set expiry
     const otp = generateOTP();
