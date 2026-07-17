@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useElection } from '../context/ElectionContext';
 import { Vote, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
@@ -7,14 +7,19 @@ import acsesLogo from '../ACSES.jpg';
 export default function LoginPage() {
   const { login, requestOtp, loginWithOtp, isLoading, loginError } = useAuth();
   const { addToast } = useElection();
-  const [studentId, setStudentId] = useState('');
+  const [studentId, setStudentId] = useState(() => sessionStorage.getItem('login_studentId') || '');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
 
-  const [loginMethod, setLoginMethod] = useState('otp'); // 'otp' or 'password'
-  const [otpStep, setOtpStep] = useState(1); // 1 = request, 2 = verify
+  const [loginMethod, setLoginMethod] = useState(() => sessionStorage.getItem('login_method') || 'otp'); // 'otp' or 'password'
+  const [otpStep, setOtpStep] = useState(() => parseInt(sessionStorage.getItem('login_otpStep') || '1', 10)); // 1 = request, 2 = verify
   const [otpCode, setOtpCode] = useState('');
-  const [maskedPhone, setMaskedPhone] = useState('');
+  const [maskedPhone, setMaskedPhone] = useState(() => sessionStorage.getItem('login_maskedPhone') || '');
+
+  useEffect(() => { sessionStorage.setItem('login_studentId', studentId); }, [studentId]);
+  useEffect(() => { sessionStorage.setItem('login_method', loginMethod); }, [loginMethod]);
+  useEffect(() => { sessionStorage.setItem('login_otpStep', otpStep.toString()); }, [otpStep]);
+  useEffect(() => { sessionStorage.setItem('login_maskedPhone', maskedPhone); }, [maskedPhone]);
 
   const [phoneOptions, setPhoneOptions] = useState([]);
   const [selectedMobileIndex, setSelectedMobileIndex] = useState('');
@@ -24,6 +29,10 @@ export default function LoginPage() {
     if (!studentId.trim() || !password) return;
     const ok = await login(studentId.trim(), password);
     if (ok) {
+      sessionStorage.removeItem('login_studentId');
+      sessionStorage.removeItem('login_method');
+      sessionStorage.removeItem('login_otpStep');
+      sessionStorage.removeItem('login_maskedPhone');
       addToast({ type: 'success', title: 'Welcome', message: 'Logged in successfully.' });
     } else {
       addToast({ type: 'error', title: 'Login Failed', message: 'Check your Student ID and password.' });
@@ -55,6 +64,10 @@ export default function LoginPage() {
     if (!studentId.trim() || !otpCode.trim()) return;
     const ok = await loginWithOtp(studentId.trim(), otpCode.trim());
     if (ok) {
+      sessionStorage.removeItem('login_studentId');
+      sessionStorage.removeItem('login_method');
+      sessionStorage.removeItem('login_otpStep');
+      sessionStorage.removeItem('login_maskedPhone');
       addToast({ type: 'success', title: 'Welcome', message: 'Logged in successfully.' });
     } else {
       addToast({ type: 'error', title: 'Verification Failed', message: 'Invalid or expired code. Please try again.' });
