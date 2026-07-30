@@ -3,9 +3,17 @@
 // ============================================
 
 const getApiBase = () => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  let url = import.meta.env.VITE_API_URL;
+  if (url) {
+    url = url.trim();
+    if (url.startsWith('hhttps://')) url = url.replace('hhttps://', 'https://');
+    if (url.startsWith('hhttp://')) url = url.replace('hhttp://', 'http://');
+    if (!url.endsWith('/api')) {
+      url = url.replace(/\/$/, '') + '/api';
+    }
+    return url;
+  }
   if (typeof window !== 'undefined' && window.location) {
-    // If running in browser and served from same domain (or a custom production port/domain)
     return `${window.location.origin}/api`;
   }
   return 'http://localhost:5000/api';
