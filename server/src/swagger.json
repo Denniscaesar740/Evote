@@ -2,7 +2,7 @@
     "openapi": "3.0.3",
     "info": {
         "title": "UniVote API Documentation",
-        "description": "REST API specification for the UniVote ACSES UMaT E-Voting System. Administrative actions require bearer tokens.",
+        "description": "REST API specification for the UniVote UMaT E-Voting System. Administrative actions require bearer tokens.",
         "version": "1.0.0"
     },
     "servers": [
@@ -237,7 +237,7 @@
                                 "properties": {
                                     "title": {
                                         "type": "string",
-                                        "example": "ACSES Presidentials 2026"
+                                        "example": "UniVote Presidentials 2026"
                                     },
                                     "description": {
                                         "type": "string",

@@ -12,7 +12,9 @@ const router = Router();
 // GET /api/departments
 router.get('/', authenticate, async (req, res) => {
   try {
-    const depts = await Department.find().sort({ name: 1 }).lean();
+    const depts = await Department.find({
+      name: { $not: /computing analytics/i }
+    }).sort({ name: 1 }).lean();
     const result = await Promise.all(depts.map(async d => {
       const studentCount = await User.countDocuments({ department_id: d._id, role: 'voter' });
       return { id: d._id, name: d.name, code: d.code, faculty: d.faculty, studentCount };

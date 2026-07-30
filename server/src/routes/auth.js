@@ -197,7 +197,7 @@ router.post('/request-otp', async (req, res) => {
     await user.save();
 
     // Send SMS (primary channel)
-    const message = `UniVote ACSES UMaT\nYour verification code is: ${otp}\nThis code expires in ${OTP_EXPIRY_MINUTES} minutes.\nDo NOT share this code with anyone.`;
+    const message = `UniVote UMaT\nYour verification code is: ${otp}\nThis code expires in ${OTP_EXPIRY_MINUTES} minutes.\nDo NOT share this code with anyone.`;
     const smsSent = await sendSMS(targetPhone, message);
 
     // If SMS fails, attempt email delivery as secondary channel
@@ -409,7 +409,7 @@ router.post('/agent/login', async (req, res) => {
         id: 'polling-agent',
         studentId: 'AGENT-SESSION',
         name: 'Polling Agent',
-        email: 'agent@univote.acses-srid.com',
+        email: 'agent@univote.edu.gh',
         role: 'agent',
         status: 'active',
       }

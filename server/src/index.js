@@ -1,5 +1,5 @@
 // ============================================
-// SERVER ENTRY — UniVote ACSES UMaT Backend API
+// SERVER ENTRY — UniVote UMaT Backend API
 // ============================================
 import 'dotenv/config';
 if (process.env.NODE_ENV !== 'development') {
@@ -315,7 +315,7 @@ const serveStatusPage = (req, res) => {
   <div class="container">
     <div class="logo-container">🗳️</div>
     <h1>UniVote API Gateway</h1>
-    <p class="subtitle">ACSES UMaT E-Voting Engine</p>
+    <p class="subtitle">UMaT E-Voting Engine</p>
     
     <div class="status-badge">
       <div class="status-dot"></div>
@@ -403,10 +403,17 @@ async function start() {
     const mongoose = (await import('mongoose')).default;
     if (mongoose.connection && mongoose.connection.db) {
       await mongoose.connection.db.collection('notifications').deleteMany({ _id: /^notif-seed-/ });
-      console.log('🧹 Cleared all hardcoded seed notifications from DB.');
+      await mongoose.connection.db.collection('departments').deleteMany({
+        $or: [
+          { name: { $regex: /computing analytics/i } },
+          { name: { $regex: /department of computing analytics/i } },
+          { code: { $regex: /analytics/i } }
+        ]
+      });
+      console.log('🧹 Cleared all hardcoded seed notifications & purged any Computing Analytics entries from DB.');
     }
   } catch (e) {
-    console.warn('⚠️  Could not clean up seed notifications collection:', e.message);
+    console.warn('⚠️  Could not clean up DB collections:', e.message);
   }
 
   initScheduler();
@@ -414,7 +421,7 @@ async function start() {
     const serverUrl = process.env.SERVER_URL || `http://localhost:${PORT}`;
     console.log(`\n╔══════════════════════════════════════════╗`);
     console.log(`║  🗳️  UniVote API Server                  ║`);
-    console.log(`║  ACSES UMaT E-Voting System              ║`);
+    console.log(`║  UMaT E-Voting System                    ║`);
     console.log(`╠══════════════════════════════════════════╣`);
     console.log(`║  Port:     ${PORT}                            ║`);
     console.log(`║  DB:       MongoDB Atlas                  ║`);

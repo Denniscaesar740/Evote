@@ -1,7 +1,7 @@
 {
   "name": "univote-server",
   "version": "1.0.0",
-  "description": "UniVote ACSES UMaT E-Voting Backend API",
+  "description": "UniVote UMaT E-Voting Backend API",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
