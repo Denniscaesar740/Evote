@@ -36,17 +36,10 @@ const app = express();
 
 // ─── Security Headers Configuration ───
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'"],
-    },
-  },
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
   hsts: process.env.NODE_ENV === 'production' ? {
-    maxAge: 31536000, // 1 year
+    maxAge: 31536000,
     includeSubDomains: true,
     preload: true,
   } : false,
@@ -64,29 +57,33 @@ const allowedOrigins = [
   'http://127.0.0.1:5174',
   'https://evote-indol.vercel.app',
   'https://univote.acses-srid.com',
+  'http://univote.acses-srid.com',
+  'https://evote-arys.onrender.com',
 ];
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
-    // Permit requests without Origin headers (same-origin, curl, server-to-server check)
     if (!origin) return callback(null, true);
-
-    // Permit matching origins or any Vercel deployments
-    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.vercel.app') ||
+      origin.endsWith('.onrender.com') ||
+      origin.includes('acses-srid.com') ||
+      origin.includes('univote') ||
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:')
+    ) {
       return callback(null, true);
     }
-
-    const isProd = process.env.NODE_ENV === 'production';
-    if (!isProd) {
-      const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
-      if (isLocalhost) return callback(null, true);
-    }
-
-    // Disallow Cross-Origin request by not adding headers, but do not throw unhandled system exceptions
-    return callback(null, false);
+    return callback(null, true);
   },
   credentials: true,
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Admin-Password'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
