@@ -11,7 +11,7 @@ import ProfilePage from './pages/ProfilePage';
 import DepartmentsPage from './pages/DepartmentsPage';
 import AgentView from './pages/AgentView';
 import { ToastContainer, SessionWarningModal } from './components/SharedUI';
-import acsesLogo from './ACSES.jpg';
+import univoteLogo from './univote_logo.png';
 import { syncServerTime } from './utils/time';
 
 function MainApp() {
@@ -48,7 +48,7 @@ function MainApp() {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-page)', flexDirection: 'column', gap: 20 }}>
         <div style={{ width: 140, height: 140, borderRadius: 24, overflow: 'hidden', border: '3px solid var(--green-100)', boxShadow: '0 8px 24px rgba(0,0,0,0.08)', animation: 'pulse 2s ease-in-out infinite', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <img src={acsesLogo} alt="ACSES Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={univoteLogo} alt="UniVote Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 14, height: 14, border: '2px solid var(--green-100)', borderTopColor: 'var(--green-600)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />

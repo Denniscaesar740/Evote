@@ -46,8 +46,9 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const [importPreview, setImportPreview] = useState(null); // { fileName, headers, mappedColumns, rows, warnings, validCount }
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [importStats, setImportStats] = useState(null); // { count, fileName, timestamp }
   const [conflictResponse, setConflictResponse] = useState(null);
+  const [uploadTargetDept, setUploadTargetDept] = useState('');
+  const [uploadTargetYear, setUploadTargetYear] = useState('');
 
   const [addingCategory, setAddingCategory] = useState({});
 
@@ -72,7 +73,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     doubleSign: true,
     sessionTimeout: 15,
     mfaRequired: false,
-    appName: 'UniVote ACSES-SRID eVoting',
+    appName: 'UniVote eVoting',
   });
 
   // User Management States
@@ -246,7 +247,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const handleAddCand = async () => {
     if (!newCand.electionId || !newCand.name || !newCand.position) { addToast({ type: 'error', message: 'Fill all candidate fields.' }); return; }
     const targetEl = elections.find(e => e.id === newCand.electionId);
-    const deptName = newCand.department || (targetEl?.departmentId ? (departments.find(d => d.id === targetEl.departmentId)?.name || '') : 'Department of Computing and Data Analytics');
+    const deptName = newCand.department || (targetEl?.departmentId ? (departments.find(d => d.id === targetEl.departmentId)?.name || '') : 'General Registry');
     try {
       await addCandidate({ ...newCand, id: `cand-${Date.now()}`, department: deptName, voteCount: 0 });
       addToast({ type: 'success', title: 'Candidate Registered', message: `${newCand.name} successfully registered.` });
@@ -263,7 +264,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
       return;
     }
     const targetEl = elections.find(e => e.id === editingCand.electionId);
-    const deptName = editingCand.department || (targetEl?.departmentId ? (departments.find(d => d.id === targetEl.departmentId)?.name || '') : 'Department of Computing and Data Analytics');
+    const deptName = editingCand.department || (targetEl?.departmentId ? (departments.find(d => d.id === targetEl.departmentId)?.name || '') : 'General Registry');
     try {
       await updateCandidate(editingCand.id, {
         name: editingCand.name,
@@ -468,8 +469,14 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
   const handleConfirmImport = async () => {
     if (!importPreview?.rows?.length) return;
     setImporting(true);
+    const targetDeptName = departments.find(d => d.id === uploadTargetDept)?.name;
+    const finalRows = importPreview.rows.map(r => ({
+      ...r,
+      ...(uploadTargetDept ? { departmentId: uploadTargetDept, department: targetDeptName || r.department } : {}),
+      ...(uploadTargetYear ? { year: uploadTargetYear } : {})
+    }));
     try {
-      const res = await importUsers(importPreview.rows);
+      const res = await importUsers(finalRows);
       setImportStats({ count: res.count, fileName: importPreview.fileName, timestamp: getSyncedDate().toISOString() });
       addToast({ type: 'success', title: 'Imported Successfully', message: `${res.count} voters imported from ${importPreview.fileName}.` });
       setShowImportPreview(false);
@@ -489,8 +496,14 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
     if (!importPreview?.rows?.length) return;
     setImporting(true);
     setConflictResponse(null);
+    const targetDeptName = departments.find(d => d.id === uploadTargetDept)?.name;
+    const finalRows = importPreview.rows.map(r => ({
+      ...r,
+      ...(uploadTargetDept ? { departmentId: uploadTargetDept, department: targetDeptName || r.department } : {}),
+      ...(uploadTargetYear ? { year: uploadTargetYear } : {})
+    }));
     try {
-      const res = await importUsers(importPreview.rows, strategy);
+      const res = await importUsers(finalRows, strategy);
       setImportStats({ count: res.count, fileName: importPreview.fileName, timestamp: getSyncedDate().toISOString() });
       addToast({
         type: 'success',
@@ -1247,6 +1260,39 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
             ))}
           </div>
 
+          {/* Target Group Assignment Panel */}
+          <div style={{ background: 'var(--white)', padding: '16px 20px', borderRadius: 14, border: '1.5px solid var(--navy-100)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--navy-800)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Layers size={15} style={{ color: 'var(--green-600)' }} /> Target Group Assignment for Uploaded Register
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--navy-500)', marginBottom: 4 }}>
+                  Assign Target Department
+                </label>
+                <select value={uploadTargetDept} onChange={e => setUploadTargetDept(e.target.value)} className="form-input" style={{ border: '1.5px solid var(--navy-200)', background: uploadTargetDept ? 'var(--green-50)' : '#fff' }}>
+                  <option value="">Auto-detect / Keep CSV Department</option>
+                  {departments.map(d => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--navy-500)', marginBottom: 4 }}>
+                  Assign Academic Year / Level
+                </label>
+                <select value={uploadTargetYear} onChange={e => setUploadTargetYear(e.target.value)} className="form-input" style={{ border: '1.5px solid var(--navy-200)', background: uploadTargetYear ? 'var(--green-50)' : '#fff' }}>
+                  <option value="">Auto-detect / Keep CSV Year</option>
+                  <option value="Year 1">Year 1 / Level 100</option>
+                  <option value="Year 2">Year 2 / Level 200</option>
+                  <option value="Year 3">Year 3 / Level 300</option>
+                  <option value="Year 4">Year 4 / Level 400</option>
+                  <option value="Postgraduate">Postgraduate</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* Drag & Drop Upload Zone */}
           <div
             onDragOver={handleDragOver}
@@ -1363,7 +1409,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                         <td>{u.email}</td>
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{u.phoneNumber || 'N/A'}</td>
                         <td style={{ fontSize: 12 }}>{u.year || 'N/A'}</td>
-                        <td style={{ fontSize: 12 }}>{dept ? `${dept.name} (${dept.code})` : 'Department of Computing and Data Analytics'}</td>
+                        <td style={{ fontSize: 12 }}>{dept ? `${dept.name} (${dept.code})` : 'General Registry'}</td>
                         <td>
                           <span
                             className={`badge-${u.status === 'active' ? 'active' : 'closed'}`}
@@ -2062,7 +2108,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {inp('System Role', newUser.role, v => setNewUser(p => ({ ...p, role: v })), { select: <><option value="voter">Student Voter</option><option value="admin">Administrator</option><option value="auditor">Independent Auditor</option></> })}
-            {inp('Department Associated', newUser.departmentId, v => setNewUser(p => ({ ...p, departmentId: v })), { select: <><option value="">None (Department of Computing and Data Analytics)</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</> })}
+            {inp('Department Associated', newUser.departmentId, v => setNewUser(p => ({ ...p, departmentId: v })), { select: <><option value="">None (General Registry)</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</> })}
           </div>
           {(newUser.role === 'admin' || newUser.role === 'auditor') && (
             inp('Login Password *', newUser.password || '', v => setNewUser(p => ({ ...p, password: v })), { type: 'password', placeholder: 'Set default password for Administrative Access' })
@@ -2097,7 +2143,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {inp('System Role', editingUser.role, v => setEditingUser(p => ({ ...p, role: v })), { select: <><option value="voter">Student Voter</option><option value="admin">Administrator</option><option value="auditor">Independent Auditor</option></> })}
-                  {inp('Department Associated', editingUser.departmentId || '', v => setEditingUser(p => ({ ...p, departmentId: v })), { select: <><option value="">None (Department of Computing and Data Analytics)</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</> })}
+                  {inp('Department Associated', editingUser.departmentId || '', v => setEditingUser(p => ({ ...p, departmentId: v })), { select: <><option value="">None (General Registry)</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</> })}
                 </div>
                 {editingUser.role === 'voter' && (
                   <div style={{ padding: 12, background: 'var(--navy-50)', borderRadius: 10, border: '1px solid rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
@@ -2155,7 +2201,7 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
               {inp('Department Associated', editingElection.departmentId || '', v => setEditingElection(p => ({ ...p, departmentId: v || null })), {
                 select: (
                   <>
-                    <option value="">None (Department of Computing and Data Analytics)</option>
+                    <option value="">None (General Registry)</option>
                     {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </>
                 )
@@ -2187,6 +2233,34 @@ export default function AdminPanel({ activeTab = 'dashboard', onNavigateTab }) {
               <button onClick={() => { setShowImportPreview(false); setImportPreview(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--navy-400)' }}>
                 <X size={18} />
               </button>
+            </div>
+
+            {/* Target Assignment Selector in Preview Modal */}
+            <div style={{ background: 'var(--navy-50)', border: '1px solid var(--navy-100)', borderRadius: 10, padding: '12px 14px', marginBottom: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--navy-600)', marginBottom: 4 }}>
+                  Target Department Assignment:
+                </label>
+                <select value={uploadTargetDept} onChange={e => setUploadTargetDept(e.target.value)} className="form-input" style={{ fontSize: 12, padding: '6px 10px', background: '#fff', border: '1px solid var(--navy-200)' }}>
+                  <option value="">Auto-detect / Keep CSV Department</option>
+                  {departments.map(d => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--navy-600)', marginBottom: 4 }}>
+                  Target Academic Year / Level Assignment:
+                </label>
+                <select value={uploadTargetYear} onChange={e => setUploadTargetYear(e.target.value)} className="form-input" style={{ fontSize: 12, padding: '6px 10px', background: '#fff', border: '1px solid var(--navy-200)' }}>
+                  <option value="">Auto-detect / Keep CSV Year</option>
+                  <option value="Year 1">Year 1 / Level 100</option>
+                  <option value="Year 2">Year 2 / Level 200</option>
+                  <option value="Year 3">Year 3 / Level 300</option>
+                  <option value="Year 4">Year 4 / Level 400</option>
+                  <option value="Postgraduate">Postgraduate</option>
+                </select>
+              </div>
             </div>
 
             {/* Column Mapping Badges */}

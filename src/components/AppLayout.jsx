@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useElection } from '../context/ElectionContext';
 import { getSyncedDate } from '../utils/time';
-import acsesLogo from '../ACSES.jpg';
+import univoteLogo from '../univote_logo.png';
 import {
   Vote, LayoutDashboard, Users, BarChart3, LogOut, Menu, X,
   ChevronDown, Bell, FileText, ClipboardList, UserCheck,
@@ -94,12 +94,12 @@ export default function AppLayout({ currentPage, onNavigate, children }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <div style={{ width: 36, height: 36, borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <img src={acsesLogo} alt="ACSES Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={univoteLogo} alt="UniVote Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             {!isCollapsed && (
               <div className="animate-fade-in" style={{ overflow: 'hidden' }}>
                 <div style={{ fontWeight: 800, fontSize: 14, color: '#fff', lineHeight: 1.2, whiteSpace: 'nowrap' }}>UniVote</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.2, whiteSpace: 'nowrap' }}>ACSES UMaT</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.2, whiteSpace: 'nowrap' }}>UMaT eVoting</div>
               </div>
             )}
           </div>

@@ -1,5 +1,5 @@
 # 🗳️ UniVote: Cryptographic Blockchain E-Voting System
-### ACSES UMaT Student Representative Elections Platform
+### UMaT Student Representative Elections Platform
 
 UniVote is a secure, modern, end-to-end verifiable university e-voting application. It leverages a tamper-proof SHA-256 blockchain ledger to record voter ballots, ensuring voter anonymity and ledger immutability.
 

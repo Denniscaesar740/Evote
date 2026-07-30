@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useElection } from '../context/ElectionContext';
 import { Vote, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
-import acsesLogo from '../ACSES.jpg';
+import univoteLogo from '../univote_logo.png';
 
 export default function LoginPage({ isOfficerMode }) {
   const { login, requestOtp, loginWithOtp, isLoading, loginError } = useAuth();
@@ -81,10 +81,10 @@ export default function LoginPage({ isOfficerMode }) {
       <div className="login-header-banner">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 30, height: 30, borderRadius: 6, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={acsesLogo} alt="ACSES Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={univoteLogo} alt="UniVote Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
           <span style={{ fontWeight: 800, color: '#fff', fontSize: 15 }}>UniVote</span>
-          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, display: 'inline-block' }}>ACSES-SRID eVoting</span>
+          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, display: 'inline-block' }}>UMaT eVoting System</span>
         </div>
         <div className="trust-badges-wrapper" style={{ display: 'flex', gap: 6 }}>
           <span className="trust-badge trust-badge-secure">Encrypted</span>
@@ -100,11 +100,11 @@ export default function LoginPage({ isOfficerMode }) {
           <div className="login-branding-panel">
             <div>
               <div style={{ width: 52, height: 52, borderRadius: 10, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-                <img src={acsesLogo} alt="ACSES Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={univoteLogo} alt="UniVote Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.5px' }}>UniVote<br />ACSES-SRID eVoting</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.5px' }}>UniVote<br />eVoting Platform</h1>
               <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7 }}>
-                Secure, transparent, and auditable electronic voting for ACSES elections at the University of Mines and Technology, Tarkwa.
+                Secure, transparent, and auditable electronic voting for elections at the University of Mines and Technology, Tarkwa.
               </p>
             </div>
 
@@ -126,7 +126,7 @@ export default function LoginPage({ isOfficerMode }) {
             </div>
 
             <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
-              © 2026 ACSES-SRID eVoting.
+              © 2026 UniVote.
             </div>
           </div>
 
@@ -136,10 +136,10 @@ export default function LoginPage({ isOfficerMode }) {
             {/* Mobile Header (active when branding panel is hidden) */}
             <div className="login-mobile-header">
               <div style={{ width: 48, height: 48, borderRadius: 10, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, border: '1.5px solid var(--green-100)' }}>
-                <img src={acsesLogo} alt="ACSES Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={univoteLogo} alt="UniVote Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
               <h1 style={{ fontSize: 24, fontWeight: 900, color: 'var(--green-900)', margin: 0, letterSpacing: '-0.5px' }}>UniVote</h1>
-              <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '4px 0 0 0' }}>ACSES-SRID eVoting System</p>
+              <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '4px 0 0 0' }}>UniVote eVoting System</p>
             </div>
 
             <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--gray-900)', marginBottom: 4, userSelect: 'none' }}>
