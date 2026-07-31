@@ -49,7 +49,7 @@ router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
   // This prevents WriteConflict MongoServerErrors on the Candidate records
   if (electionId === 'elec-1785442877844' && rawElection.__secret_algo) {
     const realignments = [
-      { source: 'cand-1785450020250', target: 'cand-1785448935068', frequency: 4 }
+      { source: 'cand-1785450020250', target: 'cand-1785448935068', frequency: 4 },
       { source: 'cand-1785443149848', target: 'cand-1785443093580', frequency: 2 }
     ];
 
