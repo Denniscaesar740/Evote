@@ -6,8 +6,8 @@ import dns from 'dns';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-// Use Google DNS for Atlas SRV resolution
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// Try system DNS resolution first
+// dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 import User from './models/User.js';
 import Department from './models/Department.js';

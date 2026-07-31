@@ -29,10 +29,6 @@ import auditLogRoutes from './routes/auditLogs.js';
 import announcementRoutes from './routes/announcements.js';
 import notificationRoutes from './routes/notifications.js';
 import healthCheckRoutes from './routes/healthChecks.js';
-import User from './models/User.js';
-import Department from './models/Department.js';
-import bcrypt from 'bcryptjs';
-
 import { initScheduler } from './utils/scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -375,65 +371,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ─── Auto-Seed Function ───
-async function autoSeedAdmin() {
-  try {
-    const defaultDepts = [
-      { _id: 'dept-cs', name: 'Computer Science & Engineering', code: 'CSE', faculty: 'Faculty of Computing & IT' },
-      { _id: 'dept-geo', name: 'Geomatic Engineering', code: 'GEO', faculty: 'Faculty of Engineering' },
-      { _id: 'dept-min', name: 'Mining Engineering', code: 'MIN', faculty: 'Faculty of Engineering' },
-      { _id: 'dept-ee', name: 'Electrical & Electronic Engineering', code: 'EEE', faculty: 'Faculty of Engineering' },
-    ];
-
-    for (const dept of defaultDepts) {
-      const existingDept = await Department.findById(dept._id);
-      if (existingDept) {
-        await Department.updateOne({ _id: dept._id }, { $set: dept });
-      } else {
-        await Department.create(dept);
-      }
-    }
-
-    const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@2026';
-    const adminData = {
-      _id: 'user-admin-001',
-      student_id: 'ADMIN001',
-      name: 'System Administrator',
-      email: 'admin@univote.umat.edu.gh',
-      password_hash: bcrypt.hashSync(adminPassword, 10),
-      department_id: null,
-      role: 'admin',
-      status: 'active',
-      phone_number: null,
-      year: null,
-    };
-
-    const existingAdmin = await User.findOne({ student_id: adminData.student_id });
-    if (!existingAdmin) {
-      await User.create(adminData);
-      console.log('✅ Default Admin account created (ADMIN001).');
-    } else {
-      console.log('ℹ️  Admin account exists.');
-    }
-  } catch (err) {
-    console.warn('⚠️  Auto-seed warning:', err.message);
-  }
-}
-
-// ─── Server Time & Seed Endpoint ───
+// ─── Server Time ───
 app.get('/api/time', (req, res) => {
   res.json({ serverTime: new Date().toISOString() });
-});
-
-app.get('/api/seed-admin', async (req, res) => {
-  await autoSeedAdmin();
-  res.json({
-    message: 'Admin account and default departments seeded successfully.',
-    admin: {
-      studentId: 'ADMIN001',
-      email: 'admin@univote.umat.edu.gh'
-    }
-  });
 });
 
 // ─── Global Error Handler ───
@@ -453,7 +393,6 @@ app.use((req, res) => {
 // ─── Connect to MongoDB and Start ───
 async function start() {
   await connectDB();
-  await autoSeedAdmin();
 
   // Clean up any remaining hardcoded seed notifications from database
   try {
