@@ -312,8 +312,7 @@ router.get('/public-live/:electionId', async (req, res) => {
   }
 });
 
-// GET /api/votes/voted-users/:electionId?
-router.get('/voted-users/:electionId?', authenticate, async (req, res) => {
+const handleGetVotedUsers = async (req, res) => {
   try {
     const { electionId } = req.params;
     const filter = electionId ? { election_id: electionId } : {};
@@ -351,7 +350,11 @@ router.get('/voted-users/:electionId?', authenticate, async (req, res) => {
     console.error('Error fetching voted users:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
-});
+};
+
+router.get('/voted-users', authenticate, handleGetVotedUsers);
+router.get('/voted-users/:electionId', authenticate, handleGetVotedUsers);
 
 export default router;
+
 
