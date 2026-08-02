@@ -345,6 +345,24 @@ const handleGetVotedUsers = async (req, res) => {
       };
     });
 
+    const getYearWeight = (y) => {
+      if (!y) return 999;
+      const str = String(y).toLowerCase();
+      const match = str.match(/\d+/);
+      if (match) return parseInt(match[0], 10);
+      if (str.includes('postgrad') || str.includes('pg') || str.includes('masters')) return 5;
+      return 99;
+    };
+
+    result.sort((a, b) => {
+      const wA = getYearWeight(a.year);
+      const wB = getYearWeight(b.year);
+      if (wA !== wB) return wA - wB;
+      const cmpYear = String(a.year || '').localeCompare(String(b.year || ''));
+      if (cmpYear !== 0) return cmpYear;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+
     res.json(result);
   } catch (err) {
     console.error('Error fetching voted users:', err);
